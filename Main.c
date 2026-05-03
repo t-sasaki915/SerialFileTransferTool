@@ -103,9 +103,19 @@ typedef enum
     APPLICATION_MODE_RECEIVE_MODE
 } ApplicationMode;
 
+typedef enum
+{
+    RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER,
+    RECEIVE_STAGE_RECEIVING_BINARY
+} ReceiveStage;
+
 ApplicationMode CURRENT_APPLICATION_MODE;
-BOOL IS_RECEIVING = FALSE;
+ReceiveStage CURRENT_RECEIVE_STAGE;
+uint64_t RECEIVING_FILE_SIZE;
 HANDLE RECEIVING_COM_PORT_HANDLE;
+HANDLE RECEIVER_THREAD_HANDLE;
+BOOL IS_RECEIVING = FALSE;
+volatile HANDLE RECEIVER_THREAD_STOP_EVENT;
 
 HFONT UI_FONT;
 
@@ -171,6 +181,16 @@ void UpdatePortList(void)
 
 void StopReceiving(void)
 {
+    if (RECEIVER_THREAD_HANDLE != INVALID_HANDLE_VALUE)
+    {
+        SetEvent(RECEIVER_THREAD_STOP_EVENT);
+
+        WaitForSingleObject(RECEIVER_THREAD_HANDLE, 5000);
+
+        CloseHandle(RECEIVER_THREAD_HANDLE);
+        RECEIVER_THREAD_HANDLE = INVALID_HANDLE_VALUE;
+    }
+
     if (RECEIVING_COM_PORT_HANDLE != INVALID_HANDLE_VALUE)
     {
         CloseHandle(RECEIVING_COM_PORT_HANDLE);
@@ -222,6 +242,52 @@ BOOL OpenSelectedPort(HANDLE *resultPtr)
     return TRUE;
 }
 
+DWORD WINAPI ReceiverThread(LPVOID lpParam)
+{
+    (void)lpParam;
+
+    while (WaitForSingleObject(RECEIVER_THREAD_STOP_EVENT, 0) == WAIT_TIMEOUT)
+    {
+        DWORD dwEventMask;
+        if (WaitCommEvent(RECEIVING_COM_PORT_HANDLE, &dwEventMask, NULL))
+        {
+            if (dwEventMask & EV_RXCHAR)
+            {
+                COMSTAT comStat;
+                DWORD dwErrors;
+                ClearCommError(RECEIVING_COM_PORT_HANDLE, &dwErrors, &comStat);
+
+                switch (CURRENT_RECEIVE_STAGE)
+                {
+                    case RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER: {
+                        if (comStat.cbInQue >= 16)
+                        {
+                            uint64_t readBuffer[2];
+                            DWORD bytesRead;
+                            ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 16, &bytesRead, NULL);
+
+                            if (readBuffer[0] == SFTT_SERIAL_MAGIC_NUMBER)
+                            {
+                                RECEIVING_FILE_SIZE = readBuffer[1];
+
+                                MessageBoxW(MAIN_WINDOW, L"", L"", MB_OK);
+                                // CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_BINARY;
+                            }
+                        }
+
+                        break;
+                    }
+                    case RECEIVE_STAGE_RECEIVING_BINARY: {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
 void StartReceiving(void)
 {
     SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_STOP);
@@ -240,39 +306,13 @@ void StartReceiving(void)
     SetCommState(RECEIVING_COM_PORT_HANDLE, &DEFAULT_DCB);
     SetCommMask(RECEIVING_COM_PORT_HANDLE, EV_RXCHAR);
 
+    CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER;
+
+    RECEIVER_THREAD_STOP_EVENT = CreateEventW(NULL, TRUE, FALSE, NULL);
+
+    RECEIVER_THREAD_HANDLE = CreateThread(NULL, 0, ReceiverThread, NULL, 0, NULL);
+
     IS_RECEIVING = TRUE;
-
-    BOOL bRet = TRUE;
-    while (bRet)
-    {
-        DWORD dwEventMask;
-        if (WaitCommEvent(RECEIVING_COM_PORT_HANDLE, &dwEventMask, NULL))
-        {
-            if (dwEventMask & EV_RXCHAR)
-            {
-                COMSTAT comStat;
-                DWORD dwErrors;
-                ClearCommError(RECEIVING_COM_PORT_HANDLE, &dwErrors, &comStat);
-
-                if (comStat.cbInQue >= 16)
-                {
-                    uint64_t buffer[2];
-
-                    DWORD bytesRead;
-                    ReadFile(RECEIVING_COM_PORT_HANDLE, buffer, 16, &bytesRead, NULL);
-
-                    if (buffer[0] == SFTT_SERIAL_MAGIC_NUMBER)
-                    {
-                        wchar_t msg[100];
-                        swprintf(msg, 100, L"%" PRId64 "", buffer[1]);
-                        MessageBoxW(MAIN_WINDOW, msg, L"", MB_OK);
-
-                        bRet = FALSE;
-                    }
-                }
-            }
-        }
-    }
 }
 
 void SetApplicationMode(ApplicationMode appMode)
