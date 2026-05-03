@@ -1,6 +1,4 @@
-#include <inttypes.h>
 #include <stdint.h>
-#include <wchar.h>
 #include <windows.h>
 
 #define SFTT_SERIAL_MAGIC_NUMBER 0x534654544E45544ALL
@@ -131,6 +129,45 @@ HWND SEND_FILE_BUTTON;
 
 DCB DEFAULT_DCB;
 
+typedef int (*PVSWPRINTF_S)(wchar_t *, size_t, const wchar_t *, va_list);
+
+PVSWPRINTF_S FORMATTER = NULL;
+
+int Format(wchar_t *buffer, size_t count, const wchar_t *format, ...)
+{
+    int result = -1;
+
+    va_list args;
+    va_start(args, format);
+
+    if (FORMATTER == NULL)
+    {
+        union {
+            FARPROC addr;
+            PVSWPRINTF_S func;
+        } converter;
+
+        HMODULE msvcrt = GetModuleHandleW(L"msvcrt.dll");
+        converter.addr = GetProcAddress(msvcrt, "vswprintf_s");
+
+        if (converter.addr != NULL)
+        {
+            FORMATTER = converter.func;
+        }
+        else
+        {
+            converter.addr = GetProcAddress(msvcrt, "_vsnwprintf");
+            FORMATTER = converter.func;
+        }
+    }
+
+    result = FORMATTER(buffer, count, format, args);
+
+    va_end(args);
+
+    return result;
+}
+
 void FreePortListItemDataPointers(void)
 {
     int itemCount = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETCOUNT, (WPARAM)0, (LPARAM)0);
@@ -157,9 +194,9 @@ void UpdatePortList(void)
     for (int i = 1; i <= COM_PORT_TRY_MAX; i++)
     {
         wchar_t friendlyPortName[10];
-        swprintf(friendlyPortName, 10, L"COM%d", i);
+        Format(friendlyPortName, 10, L"COM%d", i);
         wchar_t portName[20];
-        swprintf(portName, 20, L"\\\\.\\%ls", friendlyPortName);
+        Format(portName, 20, L"\\\\.\\%ls", friendlyPortName);
 
         HANDLE hComm = CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
 
@@ -225,7 +262,7 @@ BOOL OpenSelectedPort(HANDLE *resultPtr)
     if (hComPort == INVALID_HANDLE_VALUE)
     {
         wchar_t cannotOpenComPortMsg[CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH];
-        swprintf(
+        Format(
             cannotOpenComPortMsg,
             CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH,
             CANNOT_OPEN_COM_PORT_ERROR_MSG,
@@ -370,7 +407,7 @@ void SendFile(void)
     if (hFileToSend == INVALID_HANDLE_VALUE)
     {
         wchar_t cannotOpenFileMsg[CANNOT_OPEN_FILE_ERROR_MSG_LENGTH];
-        swprintf(
+        Format(
             cannotOpenFileMsg,
             CANNOT_OPEN_FILE_ERROR_MSG_LENGTH,
             CANNOT_OPEN_FILE_ERROR_MSG,
@@ -383,10 +420,12 @@ void SendFile(void)
     }
 
     LARGE_INTEGER fileSize;
-    if (!GetFileSizeEx(hFileToSend, &fileSize))
+    fileSize.HighPart = 0;
+    fileSize.LowPart = (LONG)GetFileSize(hFileToSend, (DWORD *)&fileSize.HighPart);
+    if (fileSize.LowPart == INVALID_FILE_SIZE)
     {
         wchar_t cannotGetFileSizeMsg[CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH];
-        swprintf(
+        Format(
             cannotGetFileSizeMsg,
             CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH,
             CANNOT_GET_FILE_SIZE_ERROR_MSG,
@@ -433,7 +472,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
             hdc = BeginPaint(hwnd, &ps);
 
-            HFONT oldFont = SelectObject(hdc, UI_FONT);
+            HFONT oldFont = (HFONT)SelectObject(hdc, UI_FONT);
 
             TextOutW(
                 hdc,
@@ -558,19 +597,12 @@ int main(void)
     DEFAULT_DCB.fInX = FALSE;
     DEFAULT_DCB.fNull = FALSE;
 
-    HICON mainWindowIcon;
-    SHSTOCKICONINFO mainWindowIconInfo;
-    mainWindowIconInfo.cbSize = sizeof(mainWindowIconInfo);
-    SHGetStockIconInfo(SIID_NETWORKCONNECT, SHGSI_ICON, &mainWindowIconInfo);
-    mainWindowIcon = mainWindowIconInfo.hIcon;
-
     WNDCLASSEXW mainWindowClass;
     ZeroMemory(&mainWindowClass, sizeof(mainWindowClass));
     mainWindowClass.cbSize = sizeof(mainWindowClass);
     mainWindowClass.lpszClassName = MAIN_WINDOW_CLASS_NAME;
     mainWindowClass.hInstance = mainInstance;
     mainWindowClass.style = CS_VREDRAW | CS_HREDRAW;
-    mainWindowClass.hIcon = mainWindowIcon;
     mainWindowClass.lpfnWndProc = MainWindowWndProc;
 
     RegisterClassExW(&mainWindowClass);
@@ -587,7 +619,7 @@ int main(void)
         DEFAULT_CHARSET,
         OUT_DEFAULT_PRECIS,
         CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
+        5, // CLEARTYPE_QUALITY
         DEFAULT_PITCH | FF_DONTCARE,
         UI_FONT_NAME);
 
@@ -750,10 +782,6 @@ int main(void)
         StopReceiving();
     }
 
-    if (mainWindowIcon != NULL)
-    {
-        DestroyIcon(mainWindowIcon);
-    }
     if (UI_FONT != NULL)
     {
         DeleteObject(UI_FONT);
