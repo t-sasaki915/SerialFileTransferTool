@@ -1,15 +1,137 @@
+#include <wchar.h>
 #include <windows.h>
 
+#define COM_PORT_TRY_MAX 20
+
 #define MAIN_WINDOW_CLASS_NAME L"SFTT_MAINWINDOW_CLASS"
+#define MAIN_WINDOW_TITLE L"SFTT"
+#define MAIN_WINDOW_WIDTH 274
+#define MAIN_WINDOW_HEIGHT 400
+
+#define UI_FONT_NAME L"MS Shell Dlg"
+#define UI_FONT_SIZE 15
+
+#define PORT_SELECT_LABEL_TEXT L"Port: "
+#define PORT_SELECT_LABEL_TEXT_LENGTH 6
+#define PORT_SELECT_LABEL_X 7
+#define PORT_SELECT_LABEL_Y 7
+
+#define PORT_SELECT_COMBOBOX_X 35
+#define PORT_SELECT_COMBOBOX_Y 4
+#define PORT_SELECT_COMBOBOX_WIDTH 150
+#define PORT_SELECT_COMBOBOX_HEIGHT 200
+#define PORT_SELECT_COMBOBOX_ID 1000
+
+#define PORT_SELECT_UPDATE_BUTTON_LABEL L"Update"
+#define PORT_SELECT_UPDATE_BUTTON_X 190
+#define PORT_SELECT_UPDATE_BUTTON_Y 4
+#define PORT_SELECT_UPDATE_BUTTON_WIDTH 70
+#define PORT_SELECT_UPDATE_BUTTON_HEIGHT 20
+#define PORT_SELECT_UPDATE_BUTTON_ID 100
+
+HFONT UI_FONT;
+
+HWND PORT_SELECT_COMBO_BOX;
+HWND PORT_SELECT_UPDATE_BUTTON;
+
+void UpdatePortList(void)
+{
+    SendMessageW(PORT_SELECT_COMBO_BOX, CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
+
+    for (int i = 1; i <= COM_PORT_TRY_MAX; i++)
+    {
+        wchar_t friendlyPortName[10];
+        swprintf(friendlyPortName, 10, L"COM%d", i);
+        wchar_t portName[20];
+        swprintf(portName, 20, L"\\\\.\\%ls", friendlyPortName);
+
+        HANDLE hComm = CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+
+        if (hComm == INVALID_HANDLE_VALUE)
+        {
+            continue;
+        }
+
+        if (GetLastError() == ERROR_ACCESS_DENIED)
+        {
+            continue;
+        }
+
+        SendMessageW(PORT_SELECT_COMBO_BOX, CB_ADDSTRING, (WPARAM)0, (LPARAM)friendlyPortName);
+
+        CloseHandle(hComm);
+    }
+    SendMessageW(PORT_SELECT_COMBO_BOX, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
+}
 
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
-    return DefWindowProcW(hwnd, wMsg, wParam, lParam);
+    switch (wMsg)
+    {
+        case WM_DESTROY: {
+            PostQuitMessage(0);
+
+            return 0;
+        }
+        case WM_PAINT: {
+            HDC hdc;
+            PAINTSTRUCT ps;
+
+            hdc = BeginPaint(hwnd, &ps);
+
+            HFONT oldFont = SelectObject(hdc, UI_FONT);
+
+            TextOutW(
+                hdc,
+                PORT_SELECT_LABEL_X,
+                PORT_SELECT_LABEL_Y,
+                PORT_SELECT_LABEL_TEXT,
+                PORT_SELECT_LABEL_TEXT_LENGTH);
+
+            SelectObject(hdc, oldFont);
+
+            EndPaint(hwnd, &ps);
+
+            return 0;
+        }
+        case WM_ERASEBKGND: {
+            HDC hdc = (HDC)wParam;
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+
+            HBRUSH bkgndBrush = GetSysColorBrush(COLOR_WINDOW);
+            FillRect(hdc, &rect, bkgndBrush);
+
+            return 1;
+        }
+        case WM_COMMAND: {
+            switch (LOWORD(wParam))
+            {
+                case PORT_SELECT_UPDATE_BUTTON_ID: {
+                    UpdatePortList();
+
+                    return 0;
+                }
+                default: {
+                    return DefWindowProcW(hwnd, wMsg, wParam, lParam);
+                }
+            }
+        }
+        default: {
+            return DefWindowProcW(hwnd, wMsg, wParam, lParam);
+        }
+    }
 }
 
 int main(void)
 {
     HINSTANCE mainInstance = GetModuleHandleW(NULL);
+
+    HICON mainWindowIcon;
+    SHSTOCKICONINFO mainWindowIconInfo;
+    mainWindowIconInfo.cbSize = sizeof(mainWindowIconInfo);
+    SHGetStockIconInfo(SIID_NETWORKCONNECT, SHGSI_ICON, &mainWindowIconInfo);
+    mainWindowIcon = mainWindowIconInfo.hIcon;
 
     WNDCLASSEXW mainWindowClass;
     ZeroMemory(&mainWindowClass, sizeof(mainWindowClass));
@@ -17,29 +139,78 @@ int main(void)
     mainWindowClass.lpszClassName = MAIN_WINDOW_CLASS_NAME;
     mainWindowClass.hInstance = mainInstance;
     mainWindowClass.style = CS_VREDRAW | CS_HREDRAW;
+    mainWindowClass.hIcon = mainWindowIcon;
     mainWindowClass.lpfnWndProc = MainWindowWndProc;
 
     RegisterClassExW(&mainWindowClass);
 
+    UI_FONT = CreateFontW(
+        UI_FONT_SIZE,
+        0,
+        0,
+        0,
+        FW_NORMAL,
+        FALSE,
+        FALSE,
+        FALSE,
+        DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS,
+        CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY,
+        DEFAULT_PITCH | FF_DONTCARE,
+        UI_FONT_NAME);
+
     HWND mainWindow = CreateWindowW(
         MAIN_WINDOW_CLASS_NAME,
-        L"SerialFileTransferTool",
-        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        MAIN_WINDOW_TITLE,
+        WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
+        MAIN_WINDOW_WIDTH,
+        MAIN_WINDOW_HEIGHT,
         NULL,
         NULL,
         mainInstance,
         NULL);
+
+    PORT_SELECT_COMBO_BOX = CreateWindowW(
+        L"COMBOBOX",
+        NULL,
+        CBS_DROPDOWNLIST | WS_CHILD | WS_VSCROLL | WS_VISIBLE,
+        PORT_SELECT_COMBOBOX_X,
+        PORT_SELECT_COMBOBOX_Y,
+        PORT_SELECT_COMBOBOX_WIDTH,
+        PORT_SELECT_COMBOBOX_HEIGHT,
+        mainWindow,
+        (HMENU)PORT_SELECT_COMBOBOX_ID,
+        mainInstance,
+        NULL);
+
+    SendMessageW(PORT_SELECT_COMBO_BOX, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+
+    PORT_SELECT_UPDATE_BUTTON = CreateWindowW(
+        L"BUTTON",
+        PORT_SELECT_UPDATE_BUTTON_LABEL,
+        WS_CHILD | WS_VISIBLE,
+        PORT_SELECT_UPDATE_BUTTON_X,
+        PORT_SELECT_UPDATE_BUTTON_Y,
+        PORT_SELECT_UPDATE_BUTTON_WIDTH,
+        PORT_SELECT_UPDATE_BUTTON_HEIGHT,
+        mainWindow,
+        (HMENU)PORT_SELECT_UPDATE_BUTTON_ID,
+        mainInstance,
+        NULL);
+
+    SendMessageW(PORT_SELECT_UPDATE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+
+    UpdatePortList();
 
     ShowWindow(mainWindow, SW_SHOWNORMAL);
     UpdateWindow(mainWindow);
 
     MSG msg;
     BOOL bRet;
-    while ((bRet = GetMessageW(&msg, mainWindow, 0, 0)) != 0)
+    while ((bRet = GetMessageW(&msg, NULL, 0, 0)) != 0)
     {
         if (bRet == -1)
         {
@@ -48,6 +219,15 @@ int main(void)
 
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
+    }
+
+    if (mainWindowIcon != NULL)
+    {
+        DestroyIcon(mainWindowIcon);
+    }
+    if (UI_FONT != NULL)
+    {
+        DeleteObject(UI_FONT);
     }
 
     return 0;
