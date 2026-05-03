@@ -89,11 +89,6 @@ void UpdatePortList(void)
             continue;
         }
 
-        if (GetLastError() == ERROR_ACCESS_DENIED)
-        {
-            continue;
-        }
-
         SendMessageW(PORT_SELECT_COMBO_BOX, CB_ADDSTRING, (WPARAM)0, (LPARAM)friendlyPortName);
 
         CloseHandle(hComm);
@@ -386,6 +381,11 @@ int main(void)
 
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
+    }
+
+    if (IS_RECEIVING)
+    {
+        StopReceiving();
     }
 
     if (mainWindowIcon != NULL)
