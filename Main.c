@@ -4,11 +4,19 @@
 #define COM_PORT_TRY_MAX 20
 #define MAX_PATH_LENGTH 260
 
+#define CANNOT_OPEN_FILE_ERROR_TITLE L"SFTT"
+#define CANNOT_OPEN_FILE_ERROR_MSG L"Cannot open the file '%ls': %lu."
+#define CANNOT_OPEN_FILE_ERROR_MSG_LENGTH 350
+
+#define CANNOT_GET_FILE_SIZE_ERROR_TITLE L"SFTT"
+#define CANNOT_GET_FILE_SIZE_ERROR_MSG L"Cannot get the size of the file '%ls': %lu."
+#define CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH 400
+
 #define MAIN_WINDOW_CLASS_NAME L"SFTT_MAINWINDOW_CLASS"
 #define MAIN_WINDOW_TITLE_SEND_MODE L"SFTT - Send"
 #define MAIN_WINDOW_TITLE_RECEIVE_MODE L"SFTT - Receive"
 #define MAIN_WINDOW_WIDTH 274
-#define MAIN_WINDOW_HEIGHT_SEND_MODE 400
+#define MAIN_WINDOW_HEIGHT_SEND_MODE 177
 #define MAIN_WINDOW_HEIGHT_RECEIVE_MODE 150
 
 #define UI_FONT_NAME L"MS Shell Dlg"
@@ -63,7 +71,6 @@
 #define SEND_FILE_PATH_TEXTBOX_Y 76
 #define SEND_FILE_PATH_TEXTBOX_WIDTH 148
 #define SEND_FILE_PATH_TEXTBOX_HEIGHT 20
-#define SEND_FILE_PATH_TEXTBOX_ID 10000
 
 #define SEND_FILE_PATH_BROWSE_BUTTON_LABEL L"Browse"
 #define SEND_FILE_PATH_BROWSE_BUTTON_X 190
@@ -71,6 +78,13 @@
 #define SEND_FILE_PATH_BROWSE_BUTTON_WIDTH 70
 #define SEND_FILE_PATH_BROWSE_BUTTON_HEIGHT 20
 #define SEND_FILE_PATH_BROWSE_BUTTON_ID 104
+
+#define SEND_FILE_BUTTON_LABEL L"Send a file"
+#define SEND_FILE_BUTTON_X 7
+#define SEND_FILE_BUTTON_Y 103
+#define SEND_FILE_BUTTON_WIDTH 253
+#define SEND_FILE_BUTTON_HEIGHT 40
+#define SEND_FILE_BUTTON_ID 105
 
 typedef enum
 {
@@ -91,6 +105,7 @@ HWND MODE_CHANGE_BUTTON_RECEIVE_MODE;
 HWND START_RECEIVING_BUTTON;
 HWND SEND_FILE_PATH_TEXTBOX;
 HWND SEND_FILE_PATH_BROWSE_BUTTON;
+HWND SEND_FILE_BUTTON;
 
 void UpdatePortList(void)
 {
@@ -181,8 +196,56 @@ void SetApplicationMode(ApplicationMode appMode)
     int sendModeComponentShowMode = (appMode == APPLICATION_MODE_SEND_MODE) ? SW_SHOW : SW_HIDE;
     ShowWindow(SEND_FILE_PATH_TEXTBOX, sendModeComponentShowMode);
     ShowWindow(SEND_FILE_PATH_BROWSE_BUTTON, sendModeComponentShowMode);
+    ShowWindow(SEND_FILE_BUTTON, sendModeComponentShowMode);
 
     InvalidateRect(MAIN_WINDOW, NULL, FALSE);
+}
+
+void SendFile(void)
+{
+    wchar_t filePathToSend[MAX_PATH_LENGTH];
+    GetWindowTextW(SEND_FILE_PATH_TEXTBOX, filePathToSend, MAX_PATH_LENGTH);
+
+    HANDLE hFileToSend =
+        CreateFileW(filePathToSend, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    if (hFileToSend == INVALID_HANDLE_VALUE)
+    {
+        wchar_t cannotOpenFileMsg[CANNOT_OPEN_FILE_ERROR_MSG_LENGTH];
+        swprintf(
+            cannotOpenFileMsg,
+            CANNOT_OPEN_FILE_ERROR_MSG_LENGTH,
+            CANNOT_OPEN_FILE_ERROR_MSG,
+            filePathToSend,
+            GetLastError());
+
+        MessageBoxW(MAIN_WINDOW, cannotOpenFileMsg, CANNOT_OPEN_FILE_ERROR_TITLE, MB_ICONERROR | MB_OK);
+
+        return;
+    }
+
+    LARGE_INTEGER fileSize;
+    if (!GetFileSizeEx(hFileToSend, &fileSize))
+    {
+        wchar_t cannotGetFileSizeMsg[CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH];
+        swprintf(
+            cannotGetFileSizeMsg,
+            CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH,
+            CANNOT_GET_FILE_SIZE_ERROR_MSG,
+            filePathToSend,
+            GetLastError());
+
+        MessageBoxW(MAIN_WINDOW, cannotGetFileSizeMsg, CANNOT_GET_FILE_SIZE_ERROR_TITLE, MB_ICONERROR | MB_OK);
+
+        if (hFileToSend != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(hFileToSend);
+        }
+
+        return;
+    }
+
+    CloseHandle(hFileToSend);
 }
 
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
@@ -282,6 +345,15 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     {
                         SetWindowTextW(SEND_FILE_PATH_TEXTBOX, filePath);
                     }
+
+                    return 0;
+                }
+                case SEND_FILE_BUTTON_ID: {
+                    EnableWindow(MAIN_WINDOW, FALSE);
+
+                    SendFile();
+
+                    EnableWindow(MAIN_WINDOW, TRUE);
 
                     return 0;
                 }
@@ -430,7 +502,7 @@ int main(void)
         SEND_FILE_PATH_TEXTBOX_WIDTH,
         SEND_FILE_PATH_TEXTBOX_HEIGHT,
         MAIN_WINDOW,
-        (HMENU)SEND_FILE_PATH_TEXTBOX_ID,
+        NULL,
         mainInstance,
         NULL);
 
@@ -450,6 +522,21 @@ int main(void)
         NULL);
 
     SendMessageW(SEND_FILE_PATH_BROWSE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+
+    SEND_FILE_BUTTON = CreateWindowW(
+        L"BUTTON",
+        SEND_FILE_BUTTON_LABEL,
+        WS_CHILD | WS_VISIBLE,
+        SEND_FILE_BUTTON_X,
+        SEND_FILE_BUTTON_Y,
+        SEND_FILE_BUTTON_WIDTH,
+        SEND_FILE_BUTTON_HEIGHT,
+        MAIN_WINDOW,
+        (HMENU)SEND_FILE_BUTTON_ID,
+        mainInstance,
+        NULL);
+
+    SendMessageW(SEND_FILE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
 
     UpdatePortList();
     SetApplicationMode(APPLICATION_MODE_SEND_MODE);
