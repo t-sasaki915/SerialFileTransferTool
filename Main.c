@@ -289,9 +289,6 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
     ZeroMemory(&ov, sizeof(ov));
     ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
 
-    SetCommState(RECEIVING_COM_PORT_HANDLE, &DEFAULT_DCB);
-    SetCommMask(RECEIVING_COM_PORT_HANDLE, EV_RXCHAR);
-
     while (IS_RECEIVING)
     {
         DWORD dwEventMask;
@@ -350,6 +347,9 @@ void StartReceiving(void)
     }
 
     CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER;
+
+    SetCommState(RECEIVING_COM_PORT_HANDLE, &DEFAULT_DCB);
+    SetCommMask(RECEIVING_COM_PORT_HANDLE, EV_RXCHAR);
 
     RECEIVER_THREAD_HANDLE = CreateThread(NULL, 0, ReceiverThread, NULL, 0, NULL);
 
