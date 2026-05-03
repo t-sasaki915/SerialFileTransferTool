@@ -1,5 +1,6 @@
 #include <wchar.h>
 #include <windows.h>
+#include <winuser.h>
 
 #define COM_PORT_TRY_MAX 20
 #define MAX_PATH_LENGTH 260
@@ -11,6 +12,13 @@
 #define CANNOT_GET_FILE_SIZE_ERROR_TITLE L"SFTT"
 #define CANNOT_GET_FILE_SIZE_ERROR_MSG L"Cannot get the size of the file '%ls': %lu."
 #define CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH 400
+
+#define PLEASE_SPECIFY_PORT_ERROR_TITLE L"SFTT"
+#define PLEASE_SPECIFY_PORT_ERROR_MSG L"Please specify the port."
+
+#define CANNOT_OPEN_COM_PORT_ERROR_TITLE L"SFTT"
+#define CANNOT_OPEN_COM_PORT_ERROR_MSG L"Cannot open the COM port '%ls': %lu."
+#define CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH 100
 
 #define MAIN_WINDOW_CLASS_NAME L"SFTT_MAINWINDOW_CLASS"
 #define MAIN_WINDOW_TITLE_SEND_MODE L"SFTT - Send"
@@ -107,9 +115,28 @@ HWND SEND_FILE_PATH_TEXTBOX;
 HWND SEND_FILE_PATH_BROWSE_BUTTON;
 HWND SEND_FILE_BUTTON;
 
+void FreePortListItemDataPointers(void)
+{
+    int itemCount = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETCOUNT, (WPARAM)0, (LPARAM)0);
+
+    for (int i = 0; i < itemCount; i++)
+    {
+        LRESULT itemData = SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETITEMDATA, (WPARAM)i, (LPARAM)0);
+        if (itemData != CB_ERR && itemData != 0)
+        {
+            free((wchar_t *)itemData);
+        }
+    }
+
+    SendMessageW(PORT_SELECT_COMBO_BOX, CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
+}
+
 void UpdatePortList(void)
 {
-    SendMessageW(PORT_SELECT_COMBO_BOX, CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
+    EnableWindow(PORT_SELECT_COMBO_BOX, FALSE);
+    EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
+
+    FreePortListItemDataPointers();
 
     for (int i = 1; i <= COM_PORT_TRY_MAX; i++)
     {
@@ -125,11 +152,15 @@ void UpdatePortList(void)
             continue;
         }
 
-        SendMessageW(PORT_SELECT_COMBO_BOX, CB_ADDSTRING, (WPARAM)0, (LPARAM)friendlyPortName);
+        wchar_t *persistentPortName = _wcsdup(portName);
+        int index = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_ADDSTRING, (WPARAM)0, (LPARAM)friendlyPortName);
+        SendMessageW(PORT_SELECT_COMBO_BOX, CB_SETITEMDATA, (WPARAM)index, (LPARAM)persistentPortName);
 
         CloseHandle(hComm);
     }
-    SendMessageW(PORT_SELECT_COMBO_BOX, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
+
+    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
+    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
 }
 
 void StartReceiving(void)
@@ -237,14 +268,46 @@ void SendFile(void)
 
         MessageBoxW(MAIN_WINDOW, cannotGetFileSizeMsg, CANNOT_GET_FILE_SIZE_ERROR_TITLE, MB_ICONERROR | MB_OK);
 
-        if (hFileToSend != INVALID_HANDLE_VALUE)
-        {
-            CloseHandle(hFileToSend);
-        }
+        CloseHandle(hFileToSend);
 
         return;
     }
 
+    int portListIndex = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETCURSEL, (WPARAM)0, (LPARAM)0);
+    LRESULT portListData = SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETITEMDATA, (WPARAM)portListIndex, (LPARAM)0);
+    if (portListData == CB_ERR || portListData == 0)
+    {
+        MessageBoxW(
+            MAIN_WINDOW,
+            PLEASE_SPECIFY_PORT_ERROR_MSG,
+            PLEASE_SPECIFY_PORT_ERROR_TITLE,
+            MB_ICONINFORMATION | MB_OK);
+
+        CloseHandle(hFileToSend);
+
+        return;
+    }
+    wchar_t *portName = (wchar_t *)portListData;
+
+    HANDLE hComPort = CreateFileW(portName, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (hComPort == INVALID_HANDLE_VALUE)
+    {
+        wchar_t cannotOpenComPortMsg[CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH];
+        swprintf(
+            cannotOpenComPortMsg,
+            CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH,
+            CANNOT_OPEN_COM_PORT_ERROR_MSG,
+            portName,
+            GetLastError());
+
+        MessageBoxW(MAIN_WINDOW, cannotOpenComPortMsg, CANNOT_OPEN_COM_PORT_ERROR_TITLE, MB_ICONERROR | MB_OK);
+
+        CloseHandle(hFileToSend);
+
+        return;
+    }
+
+    CloseHandle(hComPort);
     CloseHandle(hFileToSend);
 }
 
@@ -556,6 +619,8 @@ int main(void)
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
+
+    FreePortListItemDataPointers();
 
     if (IS_RECEIVING)
     {
