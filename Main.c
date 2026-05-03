@@ -1,6 +1,8 @@
+#include <stdint.h>
 #include <wchar.h>
 #include <windows.h>
-#include <winuser.h>
+
+#define SFTT_SERIAL_MAGIC_NUMBER 0x534654544E45544ALL
 
 #define COM_PORT_TRY_MAX 20
 #define MAX_PATH_LENGTH 260
@@ -102,6 +104,7 @@ typedef enum
 
 ApplicationMode CURRENT_APPLICATION_MODE;
 BOOL IS_RECEIVING = FALSE;
+HANDLE RECEIVING_COM_PORT_HANDLE;
 
 HFONT UI_FONT;
 
@@ -163,6 +166,59 @@ void UpdatePortList(void)
     EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
 }
 
+void StopReceiving(void)
+{
+    if (RECEIVING_COM_PORT_HANDLE != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(RECEIVING_COM_PORT_HANDLE);
+    }
+
+    SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_START);
+
+    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
+    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
+    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, TRUE);
+
+    IS_RECEIVING = FALSE;
+}
+
+BOOL OpenSelectedPort(HANDLE *resultPtr)
+{
+    int portListIndex = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETCURSEL, (WPARAM)0, (LPARAM)0);
+    LRESULT portListData = SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETITEMDATA, (WPARAM)portListIndex, (LPARAM)0);
+    if (portListData == CB_ERR || portListData == 0)
+    {
+        MessageBoxW(
+            MAIN_WINDOW,
+            PLEASE_SPECIFY_PORT_ERROR_MSG,
+            PLEASE_SPECIFY_PORT_ERROR_TITLE,
+            MB_ICONINFORMATION | MB_OK);
+
+        return FALSE;
+    }
+    wchar_t *portName = (wchar_t *)portListData;
+
+    HANDLE hComPort = CreateFileW(portName, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (hComPort == INVALID_HANDLE_VALUE)
+    {
+        wchar_t cannotOpenComPortMsg[CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH];
+        swprintf(
+            cannotOpenComPortMsg,
+            CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH,
+            CANNOT_OPEN_COM_PORT_ERROR_MSG,
+            portName,
+            GetLastError());
+
+        MessageBoxW(MAIN_WINDOW, cannotOpenComPortMsg, CANNOT_OPEN_COM_PORT_ERROR_TITLE, MB_ICONERROR | MB_OK);
+
+        return FALSE;
+    }
+
+    *resultPtr = hComPort;
+
+    return TRUE;
+}
+
 void StartReceiving(void)
 {
     SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_STOP);
@@ -171,18 +227,14 @@ void StartReceiving(void)
     EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
     EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, FALSE);
 
+    if (!OpenSelectedPort(&RECEIVING_COM_PORT_HANDLE))
+    {
+        StopReceiving();
+
+        return;
+    }
+
     IS_RECEIVING = TRUE;
-}
-
-void StopReceiving(void)
-{
-    SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_START);
-
-    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
-    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
-    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, TRUE);
-
-    IS_RECEIVING = FALSE;
 }
 
 void SetApplicationMode(ApplicationMode appMode)
@@ -270,39 +322,19 @@ void SendFile(void)
         return;
     }
 
-    int portListIndex = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETCURSEL, (WPARAM)0, (LPARAM)0);
-    LRESULT portListData = SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETITEMDATA, (WPARAM)portListIndex, (LPARAM)0);
-    if (portListData == CB_ERR || portListData == 0)
+    HANDLE hComPort;
+    if (!OpenSelectedPort(&hComPort))
     {
-        MessageBoxW(
-            MAIN_WINDOW,
-            PLEASE_SPECIFY_PORT_ERROR_MSG,
-            PLEASE_SPECIFY_PORT_ERROR_TITLE,
-            MB_ICONINFORMATION | MB_OK);
-
         CloseHandle(hFileToSend);
 
         return;
     }
-    wchar_t *portName = (wchar_t *)portListData;
 
-    HANDLE hComPort = CreateFileW(portName, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-    if (hComPort == INVALID_HANDLE_VALUE)
-    {
-        wchar_t cannotOpenComPortMsg[CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH];
-        swprintf(
-            cannotOpenComPortMsg,
-            CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH,
-            CANNOT_OPEN_COM_PORT_ERROR_MSG,
-            portName,
-            GetLastError());
+    uint64_t buffer[1024];
 
-        MessageBoxW(MAIN_WINDOW, cannotOpenComPortMsg, CANNOT_OPEN_COM_PORT_ERROR_TITLE, MB_ICONERROR | MB_OK);
-
-        CloseHandle(hFileToSend);
-
-        return;
-    }
+    buffer[0] = SFTT_SERIAL_MAGIC_NUMBER;
+    buffer[1] = (uint64_t)fileSize.QuadPart;
+    WriteFile(hComPort, buffer, 2, NULL, NULL);
 
     CloseHandle(hComPort);
     CloseHandle(hFileToSend);
