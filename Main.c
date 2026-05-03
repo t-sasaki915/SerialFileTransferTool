@@ -260,8 +260,7 @@ BOOL OpenSelectedPort(HANDLE *resultPtr)
     }
     wchar_t *portName = (wchar_t *)portListData;
 
-    HANDLE hComPort =
-        CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+    HANDLE hComPort = CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
     if (hComPort == INVALID_HANDLE_VALUE)
     {
         wchar_t cannotOpenComPortMsg[CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH];
@@ -289,6 +288,9 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
     OVERLAPPED ov;
     ZeroMemory(&ov, sizeof(ov));
     ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+
+    SetCommState(RECEIVING_COM_PORT_HANDLE, &DEFAULT_DCB);
+    SetCommMask(RECEIVING_COM_PORT_HANDLE, EV_RXCHAR);
 
     while (IS_RECEIVING)
     {
@@ -346,9 +348,6 @@ void StartReceiving(void)
 
         return;
     }
-
-    SetCommState(RECEIVING_COM_PORT_HANDLE, &DEFAULT_DCB);
-    SetCommMask(RECEIVING_COM_PORT_HANDLE, EV_RXCHAR);
 
     CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER;
 
