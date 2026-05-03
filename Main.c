@@ -6,6 +6,8 @@
 #define COM_PORT_TRY_MAX 20
 #define MAX_PATH_LENGTH 260
 
+#define WM_SFTT_TEST WM_USER + 1
+
 #define CANNOT_OPEN_FILE_ERROR_TITLE L"SFTT"
 #define CANNOT_OPEN_FILE_ERROR_MSG L"Cannot open the file '%ls': %lu."
 #define CANNOT_OPEN_FILE_ERROR_MSG_LENGTH 350
@@ -112,8 +114,7 @@ ReceiveStage CURRENT_RECEIVE_STAGE;
 uint64_t RECEIVING_FILE_SIZE;
 HANDLE RECEIVING_COM_PORT_HANDLE;
 HANDLE RECEIVER_THREAD_HANDLE;
-BOOL IS_RECEIVING = FALSE;
-volatile HANDLE RECEIVER_THREAD_STOP_EVENT;
+volatile BOOL IS_RECEIVING = FALSE;
 
 HFONT UI_FONT;
 
@@ -218,9 +219,11 @@ void UpdatePortList(void)
 
 void StopReceiving(void)
 {
+    IS_RECEIVING = FALSE;
+
     if (RECEIVER_THREAD_HANDLE != INVALID_HANDLE_VALUE)
     {
-        SetEvent(RECEIVER_THREAD_STOP_EVENT);
+        CancelIoEx(RECEIVING_COM_PORT_HANDLE, NULL);
 
         WaitForSingleObject(RECEIVER_THREAD_HANDLE, 5000);
 
@@ -231,6 +234,7 @@ void StopReceiving(void)
     if (RECEIVING_COM_PORT_HANDLE != INVALID_HANDLE_VALUE)
     {
         CloseHandle(RECEIVING_COM_PORT_HANDLE);
+        RECEIVING_COM_PORT_HANDLE = INVALID_HANDLE_VALUE;
     }
 
     SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_START);
@@ -238,8 +242,6 @@ void StopReceiving(void)
     EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
     EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
     EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, TRUE);
-
-    IS_RECEIVING = FALSE;
 }
 
 BOOL OpenSelectedPort(HANDLE *resultPtr)
@@ -258,7 +260,8 @@ BOOL OpenSelectedPort(HANDLE *resultPtr)
     }
     wchar_t *portName = (wchar_t *)portListData;
 
-    HANDLE hComPort = CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    HANDLE hComPort =
+        CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
     if (hComPort == INVALID_HANDLE_VALUE)
     {
         wchar_t cannotOpenComPortMsg[CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH];
@@ -283,10 +286,14 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 {
     (void)lpParam;
 
-    while (WaitForSingleObject(RECEIVER_THREAD_STOP_EVENT, 0) == WAIT_TIMEOUT)
+    OVERLAPPED ov;
+    ZeroMemory(&ov, sizeof(ov));
+    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+
+    while (IS_RECEIVING)
     {
         DWORD dwEventMask;
-        if (WaitCommEvent(RECEIVING_COM_PORT_HANDLE, &dwEventMask, NULL))
+        if (WaitCommEvent(RECEIVING_COM_PORT_HANDLE, &dwEventMask, &ov))
         {
             if (dwEventMask & EV_RXCHAR)
             {
@@ -307,7 +314,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                             {
                                 RECEIVING_FILE_SIZE = readBuffer[1];
 
-                                MessageBoxW(MAIN_WINDOW, L"", L"", MB_OK);
+                                SendMessageW(MAIN_WINDOW, WM_SFTT_TEST, (WPARAM)0, (LPARAM)0);
                                 // CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_BINARY;
                             }
                         }
@@ -344,8 +351,6 @@ void StartReceiving(void)
     SetCommMask(RECEIVING_COM_PORT_HANDLE, EV_RXCHAR);
 
     CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER;
-
-    RECEIVER_THREAD_STOP_EVENT = CreateEventW(NULL, TRUE, FALSE, NULL);
 
     RECEIVER_THREAD_HANDLE = CreateThread(NULL, 0, ReceiverThread, NULL, 0, NULL);
 
@@ -461,6 +466,11 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 {
     switch (wMsg)
     {
+        case WM_SFTT_TEST: {
+            MessageBoxW(MAIN_WINDOW, L"", L"", MB_OK);
+
+            return 0;
+        }
         case WM_DESTROY: {
             PostQuitMessage(0);
 
