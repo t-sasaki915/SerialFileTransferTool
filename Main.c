@@ -45,7 +45,8 @@
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_HEIGHT 40
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID 102
 
-#define START_RECEIVING_BUTTON_LABEL L"Start Receiving"
+#define START_RECEIVING_BUTTON_LABEL_START L"Start Receiving"
+#define START_RECEIVING_BUTTON_LABEL_STOP L"Stop Receiving"
 #define START_RECEIVING_BUTTON_X 7
 #define START_RECEIVING_BUTTON_Y 76
 #define START_RECEIVING_BUTTON_WIDTH 253
@@ -59,6 +60,7 @@ typedef enum
 } ApplicationMode;
 
 ApplicationMode CURRENT_APPLICATION_MODE;
+BOOL IS_RECEIVING = FALSE;
 
 HFONT UI_FONT;
 
@@ -99,8 +101,33 @@ void UpdatePortList(void)
     SendMessageW(PORT_SELECT_COMBO_BOX, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
 }
 
+void StartReceiving(void)
+{
+    SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_STOP);
+
+    EnableWindow(PORT_SELECT_COMBO_BOX, FALSE);
+    EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
+
+    IS_RECEIVING = TRUE;
+}
+
+void StopReceiving(void)
+{
+    SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_START);
+
+    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
+    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
+
+    IS_RECEIVING = FALSE;
+}
+
 void SetApplicationMode(ApplicationMode appMode)
 {
+    if (appMode != APPLICATION_MODE_RECEIVE_MODE && IS_RECEIVING)
+    {
+        StopReceiving();
+    }
+
     CURRENT_APPLICATION_MODE = appMode;
 
     LPCWSTR mainWindowTitle;
@@ -191,6 +218,18 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                 }
                 case MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID: {
                     SetApplicationMode(APPLICATION_MODE_RECEIVE_MODE);
+
+                    return 0;
+                }
+                case START_RECEIVING_BUTTON_ID: {
+                    if (IS_RECEIVING)
+                    {
+                        StopReceiving();
+                    }
+                    else
+                    {
+                        StartReceiving();
+                    }
 
                     return 0;
                 }
@@ -317,7 +356,7 @@ int main(void)
 
     START_RECEIVING_BUTTON = CreateWindowW(
         L"BUTTON",
-        START_RECEIVING_BUTTON_LABEL,
+        START_RECEIVING_BUTTON_LABEL_START,
         WS_CHILD | WS_VISIBLE,
         START_RECEIVING_BUTTON_X,
         START_RECEIVING_BUTTON_Y,
