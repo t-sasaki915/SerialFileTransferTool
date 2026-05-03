@@ -7,7 +7,8 @@
 #define MAIN_WINDOW_TITLE_SEND_MODE L"SFTT - Send"
 #define MAIN_WINDOW_TITLE_RECEIVE_MODE L"SFTT - Receive"
 #define MAIN_WINDOW_WIDTH 274
-#define MAIN_WINDOW_HEIGHT 400
+#define MAIN_WINDOW_HEIGHT_SEND_MODE 400
+#define MAIN_WINDOW_HEIGHT_RECEIVE_MODE 150
 
 #define UI_FONT_NAME L"MS Shell Dlg"
 #define UI_FONT_SIZE 15
@@ -34,21 +35,30 @@
 #define MODE_CHANGE_BUTTON_SEND_MODE_X 7
 #define MODE_CHANGE_BUTTON_SEND_MODE_Y 30
 #define MODE_CHANGE_BUTTON_SEND_MODE_WIDTH 123
-#define MODE_CHANGE_BUTTON_SEND_MODE_HEIGHT 50
+#define MODE_CHANGE_BUTTON_SEND_MODE_HEIGHT 40
 #define MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID 101
 
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_LABEL L"Receive Mode"
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_X 137
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_Y 30
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_WIDTH 123
-#define MODE_CHANGE_BUTTON_RECEIVE_MODE_HEIGHT 50
+#define MODE_CHANGE_BUTTON_RECEIVE_MODE_HEIGHT 40
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID 102
+
+#define START_RECEIVING_BUTTON_LABEL L"Start Receiving"
+#define START_RECEIVING_BUTTON_X 7
+#define START_RECEIVING_BUTTON_Y 76
+#define START_RECEIVING_BUTTON_WIDTH 253
+#define START_RECEIVING_BUTTON_HEIGHT 40
+#define START_RECEIVING_BUTTON_ID 103
 
 typedef enum
 {
     APPLICATION_MODE_SEND_MODE,
     APPLICATION_MODE_RECEIVE_MODE
 } ApplicationMode;
+
+ApplicationMode CURRENT_APPLICATION_MODE;
 
 HFONT UI_FONT;
 
@@ -57,6 +67,7 @@ HWND PORT_SELECT_COMBO_BOX;
 HWND PORT_SELECT_UPDATE_BUTTON;
 HWND MODE_CHANGE_BUTTON_SEND_MODE;
 HWND MODE_CHANGE_BUTTON_RECEIVE_MODE;
+HWND START_RECEIVING_BUTTON;
 
 void UpdatePortList(void)
 {
@@ -90,23 +101,39 @@ void UpdatePortList(void)
 
 void SetApplicationMode(ApplicationMode appMode)
 {
+    CURRENT_APPLICATION_MODE = appMode;
+
     LPCWSTR mainWindowTitle;
+    int mainWindowHeight;
     switch (appMode)
     {
         case APPLICATION_MODE_SEND_MODE: {
             mainWindowTitle = MAIN_WINDOW_TITLE_SEND_MODE;
+            mainWindowHeight = MAIN_WINDOW_HEIGHT_SEND_MODE;
             break;
         }
         case APPLICATION_MODE_RECEIVE_MODE: {
             mainWindowTitle = MAIN_WINDOW_TITLE_RECEIVE_MODE;
+            mainWindowHeight = MAIN_WINDOW_HEIGHT_RECEIVE_MODE;
             break;
         }
     }
 
     SendMessageW(MAIN_WINDOW, WM_SETTEXT, (WPARAM)0, (LPARAM)mainWindowTitle);
+    SetWindowPos(
+        MAIN_WINDOW,
+        NULL,
+        0,
+        0,
+        MAIN_WINDOW_WIDTH,
+        mainWindowHeight,
+        SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER);
 
     EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, appMode != APPLICATION_MODE_SEND_MODE);
     EnableWindow(MODE_CHANGE_BUTTON_RECEIVE_MODE, appMode != APPLICATION_MODE_RECEIVE_MODE);
+
+    int startReceivingButtonShowMode = (appMode == APPLICATION_MODE_RECEIVE_MODE) ? SW_SHOW : SW_HIDE;
+    ShowWindow(START_RECEIVING_BUTTON, startReceivingButtonShowMode);
 }
 
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
@@ -222,7 +249,7 @@ int main(void)
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         MAIN_WINDOW_WIDTH,
-        MAIN_WINDOW_HEIGHT,
+        0,
         NULL,
         NULL,
         mainInstance,
@@ -287,6 +314,21 @@ int main(void)
         NULL);
 
     SendMessageW(MODE_CHANGE_BUTTON_RECEIVE_MODE, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+
+    START_RECEIVING_BUTTON = CreateWindowW(
+        L"BUTTON",
+        START_RECEIVING_BUTTON_LABEL,
+        WS_CHILD | WS_VISIBLE,
+        START_RECEIVING_BUTTON_X,
+        START_RECEIVING_BUTTON_Y,
+        START_RECEIVING_BUTTON_WIDTH,
+        START_RECEIVING_BUTTON_HEIGHT,
+        MAIN_WINDOW,
+        (HMENU)START_RECEIVING_BUTTON_ID,
+        mainInstance,
+        NULL);
+
+    SendMessageW(START_RECEIVING_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
 
     UpdatePortList();
     SetApplicationMode(APPLICATION_MODE_SEND_MODE);
