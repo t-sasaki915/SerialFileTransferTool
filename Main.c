@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <stdint.h>
 #include <wchar.h>
 #include <windows.h>
@@ -118,6 +119,8 @@ HWND SEND_FILE_PATH_TEXTBOX;
 HWND SEND_FILE_PATH_BROWSE_BUTTON;
 HWND SEND_FILE_BUTTON;
 
+DCB DEFAULT_DCB;
+
 void FreePortListItemDataPointers(void)
 {
     int itemCount = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETCOUNT, (WPARAM)0, (LPARAM)0);
@@ -198,7 +201,7 @@ BOOL OpenSelectedPort(HANDLE *resultPtr)
     }
     wchar_t *portName = (wchar_t *)portListData;
 
-    HANDLE hComPort = CreateFileW(portName, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    HANDLE hComPort = CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
     if (hComPort == INVALID_HANDLE_VALUE)
     {
         wchar_t cannotOpenComPortMsg[CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH];
@@ -234,7 +237,42 @@ void StartReceiving(void)
         return;
     }
 
+    SetCommState(RECEIVING_COM_PORT_HANDLE, &DEFAULT_DCB);
+    SetCommMask(RECEIVING_COM_PORT_HANDLE, EV_RXCHAR);
+
     IS_RECEIVING = TRUE;
+
+    BOOL bRet = TRUE;
+    while (bRet)
+    {
+        DWORD dwEventMask;
+        if (WaitCommEvent(RECEIVING_COM_PORT_HANDLE, &dwEventMask, NULL))
+        {
+            if (dwEventMask & EV_RXCHAR)
+            {
+                COMSTAT comStat;
+                DWORD dwErrors;
+                ClearCommError(RECEIVING_COM_PORT_HANDLE, &dwErrors, &comStat);
+
+                if (comStat.cbInQue >= 16)
+                {
+                    uint64_t buffer[2];
+
+                    DWORD bytesRead;
+                    ReadFile(RECEIVING_COM_PORT_HANDLE, buffer, 16, &bytesRead, NULL);
+
+                    if (buffer[0] == SFTT_SERIAL_MAGIC_NUMBER)
+                    {
+                        wchar_t msg[100];
+                        swprintf(msg, 100, L"%" PRId64 "", buffer[1]);
+                        MessageBoxW(MAIN_WINDOW, msg, L"", MB_OK);
+
+                        bRet = FALSE;
+                    }
+                }
+            }
+        }
+    }
 }
 
 void SetApplicationMode(ApplicationMode appMode)
@@ -334,7 +372,7 @@ void SendFile(void)
 
     buffer[0] = SFTT_SERIAL_MAGIC_NUMBER;
     buffer[1] = (uint64_t)fileSize.QuadPart;
-    WriteFile(hComPort, buffer, 2, NULL, NULL);
+    WriteFile(hComPort, buffer, 16, NULL, NULL);
 
     CloseHandle(hComPort);
     CloseHandle(hFileToSend);
@@ -473,6 +511,12 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 int main(void)
 {
     HINSTANCE mainInstance = GetModuleHandleW(NULL);
+
+    ZeroMemory(&DEFAULT_DCB, sizeof(DEFAULT_DCB));
+    DEFAULT_DCB.fBinary = TRUE;
+    DEFAULT_DCB.fOutX = FALSE;
+    DEFAULT_DCB.fInX = FALSE;
+    DEFAULT_DCB.fNull = FALSE;
 
     HICON mainWindowIcon;
     SHSTOCKICONINFO mainWindowIconInfo;
