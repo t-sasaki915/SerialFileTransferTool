@@ -2,6 +2,7 @@
 #include <windows.h>
 
 #define COM_PORT_TRY_MAX 20
+#define MAX_PATH_LENGTH 260
 
 #define MAIN_WINDOW_CLASS_NAME L"SFTT_MAINWINDOW_CLASS"
 #define MAIN_WINDOW_TITLE_SEND_MODE L"SFTT - Send"
@@ -53,6 +54,24 @@
 #define START_RECEIVING_BUTTON_HEIGHT 40
 #define START_RECEIVING_BUTTON_ID 103
 
+#define FILE_TO_SEND_LABEL_TEXT L"File: "
+#define FILE_TO_SEND_LABEL_TEXT_LENGTH 6
+#define FILE_TO_SEND_LABEL_X 7
+#define FILE_TO_SEND_LABEL_Y 79
+
+#define SEND_FILE_PATH_TEXTBOX_X 35
+#define SEND_FILE_PATH_TEXTBOX_Y 76
+#define SEND_FILE_PATH_TEXTBOX_WIDTH 148
+#define SEND_FILE_PATH_TEXTBOX_HEIGHT 20
+#define SEND_FILE_PATH_TEXTBOX_ID 10000
+
+#define SEND_FILE_PATH_BROWSE_BUTTON_LABEL L"Browse"
+#define SEND_FILE_PATH_BROWSE_BUTTON_X 190
+#define SEND_FILE_PATH_BROWSE_BUTTON_Y 76
+#define SEND_FILE_PATH_BROWSE_BUTTON_WIDTH 70
+#define SEND_FILE_PATH_BROWSE_BUTTON_HEIGHT 20
+#define SEND_FILE_PATH_BROWSE_BUTTON_ID 104
+
 typedef enum
 {
     APPLICATION_MODE_SEND_MODE,
@@ -70,6 +89,8 @@ HWND PORT_SELECT_UPDATE_BUTTON;
 HWND MODE_CHANGE_BUTTON_SEND_MODE;
 HWND MODE_CHANGE_BUTTON_RECEIVE_MODE;
 HWND START_RECEIVING_BUTTON;
+HWND SEND_FILE_PATH_TEXTBOX;
+HWND SEND_FILE_PATH_BROWSE_BUTTON;
 
 void UpdatePortList(void)
 {
@@ -156,6 +177,12 @@ void SetApplicationMode(ApplicationMode appMode)
 
     int startReceivingButtonShowMode = (appMode == APPLICATION_MODE_RECEIVE_MODE) ? SW_SHOW : SW_HIDE;
     ShowWindow(START_RECEIVING_BUTTON, startReceivingButtonShowMode);
+
+    int sendModeComponentShowMode = (appMode == APPLICATION_MODE_SEND_MODE) ? SW_SHOW : SW_HIDE;
+    ShowWindow(SEND_FILE_PATH_TEXTBOX, sendModeComponentShowMode);
+    ShowWindow(SEND_FILE_PATH_BROWSE_BUTTON, sendModeComponentShowMode);
+
+    InvalidateRect(MAIN_WINDOW, NULL, FALSE);
 }
 
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
@@ -181,6 +208,16 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                 PORT_SELECT_LABEL_Y,
                 PORT_SELECT_LABEL_TEXT,
                 PORT_SELECT_LABEL_TEXT_LENGTH);
+
+            if (CURRENT_APPLICATION_MODE == APPLICATION_MODE_SEND_MODE)
+            {
+                TextOutW(
+                    hdc,
+                    FILE_TO_SEND_LABEL_X,
+                    FILE_TO_SEND_LABEL_Y,
+                    FILE_TO_SEND_LABEL_TEXT,
+                    FILE_TO_SEND_LABEL_TEXT_LENGTH);
+            }
 
             SelectObject(hdc, oldFont);
 
@@ -224,6 +261,26 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     else
                     {
                         StartReceiving();
+                    }
+
+                    return 0;
+                }
+                case SEND_FILE_PATH_BROWSE_BUTTON_ID: {
+                    wchar_t filePath[MAX_PATH_LENGTH] = L"";
+
+                    OPENFILENAMEW ofn;
+                    ZeroMemory(&ofn, sizeof(ofn));
+                    ofn.lStructSize = sizeof(ofn);
+                    ofn.hwndOwner = MAIN_WINDOW;
+                    ofn.lpstrFile = filePath;
+                    ofn.nMaxFile = MAX_PATH_LENGTH;
+                    ofn.lpstrFilter = L"All Files\0*.*\0";
+                    ofn.nFilterIndex = 1;
+                    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_EXPLORER;
+
+                    if (GetOpenFileNameW(&ofn))
+                    {
+                        SetWindowTextW(SEND_FILE_PATH_TEXTBOX, filePath);
                     }
 
                     return 0;
@@ -363,6 +420,36 @@ int main(void)
         NULL);
 
     SendMessageW(START_RECEIVING_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+
+    SEND_FILE_PATH_TEXTBOX = CreateWindowW(
+        L"EDIT",
+        NULL,
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+        SEND_FILE_PATH_TEXTBOX_X,
+        SEND_FILE_PATH_TEXTBOX_Y,
+        SEND_FILE_PATH_TEXTBOX_WIDTH,
+        SEND_FILE_PATH_TEXTBOX_HEIGHT,
+        MAIN_WINDOW,
+        (HMENU)SEND_FILE_PATH_TEXTBOX_ID,
+        mainInstance,
+        NULL);
+
+    SendMessageW(SEND_FILE_PATH_TEXTBOX, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+
+    SEND_FILE_PATH_BROWSE_BUTTON = CreateWindowW(
+        L"BUTTON",
+        SEND_FILE_PATH_BROWSE_BUTTON_LABEL,
+        WS_CHILD | WS_VISIBLE,
+        SEND_FILE_PATH_BROWSE_BUTTON_X,
+        SEND_FILE_PATH_BROWSE_BUTTON_Y,
+        SEND_FILE_PATH_BROWSE_BUTTON_WIDTH,
+        SEND_FILE_PATH_BROWSE_BUTTON_HEIGHT,
+        MAIN_WINDOW,
+        (HMENU)SEND_FILE_PATH_BROWSE_BUTTON_ID,
+        mainInstance,
+        NULL);
+
+    SendMessageW(SEND_FILE_PATH_BROWSE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
 
     UpdatePortList();
     SetApplicationMode(APPLICATION_MODE_SEND_MODE);
