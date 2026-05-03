@@ -169,6 +169,7 @@ void StartReceiving(void)
 
     EnableWindow(PORT_SELECT_COMBO_BOX, FALSE);
     EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
+    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, FALSE);
 
     IS_RECEIVING = TRUE;
 }
@@ -179,17 +180,13 @@ void StopReceiving(void)
 
     EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
     EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
+    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, TRUE);
 
     IS_RECEIVING = FALSE;
 }
 
 void SetApplicationMode(ApplicationMode appMode)
 {
-    if (appMode != APPLICATION_MODE_RECEIVE_MODE && IS_RECEIVING)
-    {
-        StopReceiving();
-    }
-
     CURRENT_APPLICATION_MODE = appMode;
 
     LPCWSTR mainWindowTitle;
@@ -412,11 +409,21 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     return 0;
                 }
                 case SEND_FILE_BUTTON_ID: {
-                    EnableWindow(MAIN_WINDOW, FALSE);
+                    EnableWindow(PORT_SELECT_COMBO_BOX, FALSE);
+                    EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
+                    EnableWindow(MODE_CHANGE_BUTTON_RECEIVE_MODE, FALSE);
+                    EnableWindow(SEND_FILE_PATH_TEXTBOX, FALSE);
+                    EnableWindow(SEND_FILE_PATH_BROWSE_BUTTON, FALSE);
+                    EnableWindow(SEND_FILE_BUTTON, FALSE);
 
                     SendFile();
 
-                    EnableWindow(MAIN_WINDOW, TRUE);
+                    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
+                    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
+                    EnableWindow(MODE_CHANGE_BUTTON_RECEIVE_MODE, TRUE);
+                    EnableWindow(SEND_FILE_PATH_TEXTBOX, TRUE);
+                    EnableWindow(SEND_FILE_PATH_BROWSE_BUTTON, TRUE);
+                    EnableWindow(SEND_FILE_BUTTON, TRUE);
 
                     return 0;
                 }
