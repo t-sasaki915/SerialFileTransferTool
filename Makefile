@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Wpedantic -mwindows
+CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -mwindows
 LDFLAGS = -static -static-libgcc -lgdi32 -lcomdlg32
 BIN_NAME = SerialFileTransferTool.exe
 
