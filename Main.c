@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <stdint.h>
 #include <windows.h>
 
@@ -106,12 +107,15 @@ typedef enum
 typedef enum
 {
     RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER,
+    RECEIVE_STAGE_RECEIVING_FILE_NAME,
     RECEIVE_STAGE_RECEIVING_BINARY
 } ReceiveStage;
 
 ApplicationMode CURRENT_APPLICATION_MODE;
 ReceiveStage CURRENT_RECEIVE_STAGE;
 uint64_t RECEIVING_FILE_SIZE;
+uint64_t RECEIVING_FILE_NAME_SIZE;
+wchar_t *RECEIVING_FILE_NAME;
 HANDLE RECEIVING_COM_PORT_HANDLE;
 HANDLE RECEIVER_THREAD_HANDLE;
 volatile BOOL IS_RECEIVING = FALSE;
@@ -303,19 +307,35 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                 switch (CURRENT_RECEIVE_STAGE)
                 {
                     case RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER: {
-                        if (comStat.cbInQue >= 16)
+                        if (comStat.cbInQue >= 24)
                         {
-                            uint64_t readBuffer[2];
+                            uint64_t readBuffer[3];
                             DWORD bytesRead;
-                            ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 16, &bytesRead, NULL);
+                            ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 24, &bytesRead, NULL);
 
                             if (readBuffer[0] == SFTT_SERIAL_MAGIC_NUMBER)
                             {
                                 RECEIVING_FILE_SIZE = readBuffer[1];
+                                RECEIVING_FILE_NAME_SIZE = readBuffer[2];
 
-                                SendMessageW(MAIN_WINDOW, WM_SFTT_TEST, (WPARAM)0, (LPARAM)0);
-                                // CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_BINARY;
+                                CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_FILE_NAME;
                             }
+                        }
+
+                        break;
+                    }
+                    case RECEIVE_STAGE_RECEIVING_FILE_NAME: {
+                        if (comStat.cbInQue >= RECEIVING_FILE_NAME_SIZE)
+                        {
+                            wchar_t *buffer = (wchar_t *)malloc(RECEIVING_FILE_NAME_SIZE);
+                            DWORD bytesRead;
+                            ReadFile(RECEIVING_COM_PORT_HANDLE, buffer, RECEIVING_FILE_NAME_SIZE, &bytesRead, NULL);
+
+                            RECEIVING_FILE_NAME = buffer;
+
+                            SendMessageW(MAIN_WINDOW, WM_SFTT_TEST, (WPARAM)0, (LPARAM)0);
+
+                            CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER;
                         }
 
                         break;
@@ -400,6 +420,17 @@ void SetApplicationMode(ApplicationMode appMode)
     InvalidateRect(MAIN_WINDOW, NULL, FALSE);
 }
 
+wchar_t *GetFileName(wchar_t *filePath)
+{
+    wchar_t *lastSlash = wcsrchr(filePath, L'\\');
+    if (!lastSlash)
+    {
+        return filePath;
+    }
+
+    return lastSlash + 1;
+}
+
 void SendFile(void)
 {
     wchar_t filePathToSend[MAX_PATH_LENGTH];
@@ -443,6 +474,9 @@ void SendFile(void)
         return;
     }
 
+    wchar_t *fileName = GetFileName(filePathToSend);
+    size_t fileNameSize = (wcslen(fileName) + 1) * sizeof(wchar_t);
+
     HANDLE hComPort;
     if (!OpenSelectedPort(&hComPort))
     {
@@ -451,11 +485,14 @@ void SendFile(void)
         return;
     }
 
-    uint64_t buffer[1024];
+    uint64_t sendBuffer[1024];
 
-    buffer[0] = SFTT_SERIAL_MAGIC_NUMBER;
-    buffer[1] = (uint64_t)fileSize.QuadPart;
-    WriteFile(hComPort, buffer, 16, NULL, NULL);
+    sendBuffer[0] = SFTT_SERIAL_MAGIC_NUMBER;
+    sendBuffer[1] = (uint64_t)fileSize.QuadPart;
+    sendBuffer[2] = (uint64_t)fileNameSize;
+    WriteFile(hComPort, sendBuffer, 24, NULL, NULL);
+
+    WriteFile(hComPort, fileName, fileNameSize, NULL, NULL);
 
     CloseHandle(hComPort);
     CloseHandle(hFileToSend);
@@ -466,7 +503,18 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
     switch (wMsg)
     {
         case WM_SFTT_TEST: {
-            MessageBoxW(MAIN_WINDOW, L"", L"", MB_OK);
+            wchar_t msg[1000];
+            Format(
+                msg,
+                1000,
+                L"File Size: %" PRId64 "\nFile Name Size: %" PRId64 "\nFile Name: %ls",
+                RECEIVING_FILE_SIZE,
+                RECEIVING_FILE_NAME_SIZE,
+                RECEIVING_FILE_NAME);
+
+            MessageBoxW(MAIN_WINDOW, msg, L"", MB_OK);
+
+            free(RECEIVING_FILE_NAME);
 
             return 0;
         }
