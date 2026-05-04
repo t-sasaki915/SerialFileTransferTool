@@ -2,7 +2,8 @@
 #include <stdint.h>
 #include <windows.h>
 
-#define SFTT_SERIAL_MAGIC_NUMBER 0x534654544E45544ALL
+#define SFTT_SERIAL_START_SIGNATURE 0x4F8A2B9C1E3D7654
+#define SFTT_SERIAL_FINAL_SIGNATURE 0xB2E1094D6F83A57C
 
 #define COM_PORT_TRY_MAX 20
 #define MAX_PATH_LENGTH 260
@@ -106,9 +107,10 @@ typedef enum
 
 typedef enum
 {
-    RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER,
+    RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE,
     RECEIVE_STAGE_RECEIVING_FILE_NAME,
-    RECEIVE_STAGE_RECEIVING_BINARY
+    RECEIVE_STAGE_RECEIVING_BINARY,
+    RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE
 } ReceiveStage;
 
 ApplicationMode CURRENT_APPLICATION_MODE;
@@ -306,14 +308,14 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 
                 switch (CURRENT_RECEIVE_STAGE)
                 {
-                    case RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER: {
+                    case RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE: {
                         if (comStat.cbInQue >= 24)
                         {
                             uint64_t readBuffer[3];
                             DWORD bytesRead;
                             ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 24, &bytesRead, NULL);
 
-                            if (readBuffer[0] == SFTT_SERIAL_MAGIC_NUMBER)
+                            if (readBuffer[0] == SFTT_SERIAL_START_SIGNATURE)
                             {
                                 RECEIVING_FILE_SIZE = readBuffer[1];
                                 RECEIVING_FILE_NAME_SIZE = readBuffer[2];
@@ -333,14 +335,29 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 
                             RECEIVING_FILE_NAME = buffer;
 
-                            SendMessageW(MAIN_WINDOW, WM_SFTT_TEST, (WPARAM)0, (LPARAM)0);
-
-                            CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER;
+                            CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE;
                         }
 
                         break;
                     }
                     case RECEIVE_STAGE_RECEIVING_BINARY: {
+                        break;
+                    }
+                    case RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE: {
+                        if (comStat.cbInQue >= 8)
+                        {
+                            uint64_t readBuffer[1];
+                            DWORD bytesRead;
+                            ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 8, &bytesRead, NULL);
+
+                            if (readBuffer[0] == SFTT_SERIAL_FINAL_SIGNATURE)
+                            {
+                                SendMessageW(MAIN_WINDOW, WM_SFTT_TEST, (WPARAM)0, (LPARAM)0);
+
+                                CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
+                            }
+                        }
+
                         break;
                     }
                 }
@@ -366,7 +383,7 @@ void StartReceiving(void)
         return;
     }
 
-    CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_MAGIC_NUMBER;
+    CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
 
     SetCommState(RECEIVING_COM_PORT_HANDLE, &DEFAULT_DCB);
     SetCommMask(RECEIVING_COM_PORT_HANDLE, EV_RXCHAR);
@@ -485,14 +502,24 @@ void SendFile(void)
         return;
     }
 
-    uint64_t sendBuffer[1024];
-
-    sendBuffer[0] = SFTT_SERIAL_MAGIC_NUMBER;
+    uint64_t sendBuffer[3];
+    DWORD bytesWritten;
+    sendBuffer[0] = SFTT_SERIAL_START_SIGNATURE;
     sendBuffer[1] = (uint64_t)fileSize.QuadPart;
     sendBuffer[2] = (uint64_t)fileNameSize;
-    WriteFile(hComPort, sendBuffer, 24, NULL, NULL);
+    WriteFile(hComPort, sendBuffer, 24, &bytesWritten, NULL);
 
-    WriteFile(hComPort, fileName, fileNameSize, NULL, NULL);
+    WriteFile(hComPort, fileName, fileNameSize, &bytesWritten, NULL);
+
+    /*BYTE binBuffer[4096];
+    DWORD bytesRead;
+    while (ReadFile(hFileToSend, binBuffer, sizeof(binBuffer), &bytesRead, NULL) && bytesRead > 0)
+    {
+        WriteFile(hComPort, binBuffer, bytesRead, &bytesWritten, NULL);
+    }*/
+
+    sendBuffer[0] = SFTT_SERIAL_FINAL_SIGNATURE;
+    WriteFile(hComPort, sendBuffer, 8, &bytesWritten, NULL);
 
     CloseHandle(hComPort);
     CloseHandle(hFileToSend);
@@ -507,7 +534,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
             Format(
                 msg,
                 1000,
-                L"File Size: %" PRId64 "\nFile Name Size: %" PRId64 "\nFile Name: %ls",
+                L"Final Signature Matched.\nFile Size: %" PRId64 "\nFile Name Size: %" PRId64 "\nFile Name: %ls",
                 RECEIVING_FILE_SIZE,
                 RECEIVING_FILE_NAME_SIZE,
                 RECEIVING_FILE_NAME);
