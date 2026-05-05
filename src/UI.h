@@ -9,6 +9,13 @@ typedef enum
     APPLICATION_MODE_RECEIVE_MODE
 } ApplicationMode;
 
+typedef enum
+{
+    STATUS_BAR_STATUS_READY,
+    STATUS_BAR_STATUS_SENDING,
+    STATUS_BAR_STATUS_RECEIVING
+} StatusBarStatus;
+
 typedef void (*P_ONPORTSELECTUPDATEBUTTON)(void);
 typedef void (*P_ONMODECHANGEBUTTONSENDMODE)(void);
 typedef void (*P_ONMODECHANGEBUTTONRECEIVEMODE)(void);
@@ -51,6 +58,8 @@ void RequestErrorDialog(wchar_t *msg);
 void UIStopReceiving(void);
 
 void UIStartReceiving(void);
+
+void SetStatusBarText(StatusBarStatus status);
 
 void EnableSetModeControls(BOOL enable);
 

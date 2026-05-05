@@ -78,10 +78,12 @@ void OnSendFileButton(void)
     }
 
     EnableSetModeControls(FALSE);
+    SetStatusBarText(STATUS_BAR_STATUS_SENDING);
 
     SendFile(selectedPortName, filePath);
 
     EnableSetModeControls(TRUE);
+    SetStatusBarText(STATUS_BAR_STATUS_READY);
 }
 
 int main(void)

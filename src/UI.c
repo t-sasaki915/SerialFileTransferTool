@@ -1,4 +1,8 @@
+#define _WIN32_WINNT 0x0500
+
 #include <windows.h>
+
+#include <commctrl.h>
 
 #include "Serial.h"
 #include "UI.h"
@@ -13,8 +17,8 @@
 #define MAIN_WINDOW_TITLE_SEND_MODE L"SFTT - Send"
 #define MAIN_WINDOW_TITLE_RECEIVE_MODE L"SFTT - Receive"
 #define MAIN_WINDOW_WIDTH 274
-#define MAIN_WINDOW_HEIGHT_SEND_MODE 177
-#define MAIN_WINDOW_HEIGHT_RECEIVE_MODE 150
+#define MAIN_WINDOW_HEIGHT_SEND_MODE 197
+#define MAIN_WINDOW_HEIGHT_RECEIVE_MODE 170
 
 #define PORT_SELECT_LABEL_TEXT L"Port: "
 #define PORT_SELECT_LABEL_TEXT_LENGTH 6
@@ -80,6 +84,10 @@
 #define SEND_FILE_BUTTON_HEIGHT 40
 #define SEND_FILE_BUTTON_ID 105
 
+#define STATUS_BAR_TEXT_READY L"Ready"
+#define STATUS_BAR_TEXT_SENDING L"Sending"
+#define STATUS_BAR_TEXT_RECEIVING L"Receiving"
+
 HINSTANCE MAIN_INSTANCE;
 
 LogicSet MAIN_LOGIC_SET;
@@ -87,6 +95,8 @@ LogicSet MAIN_LOGIC_SET;
 HFONT UI_FONT;
 
 HWND MAIN_WINDOW;
+HWND MAIN_WINDOW_STATUS_BAR;
+HWND MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR;
 HWND PORT_SELECT_COMBO_BOX;
 HWND PORT_SELECT_UPDATE_BUTTON;
 HWND MODE_CHANGE_BUTTON_SEND_MODE;
@@ -100,6 +110,11 @@ ApplicationMode CURRENT_APPLICATION_MODE;
 
 void InitialiseUI(LogicSet mainLogicSet)
 {
+    INITCOMMONCONTROLSEX icce;
+    icce.dwSize = sizeof(icce);
+    icce.dwICC = ICC_BAR_CLASSES;
+    InitCommonControlsEx(&icce);
+
     MAIN_INSTANCE = GetModuleHandleW(NULL);
 
     MAIN_LOGIC_SET = mainLogicSet;
@@ -282,6 +297,28 @@ void UIStartReceiving(void)
     EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, FALSE);
 }
 
+void SetStatusBarText(StatusBarStatus status)
+{
+    wchar_t *newStatusBarText = L"";
+    switch (status)
+    {
+        case STATUS_BAR_STATUS_READY: {
+            newStatusBarText = STATUS_BAR_TEXT_READY;
+            break;
+        }
+        case STATUS_BAR_STATUS_RECEIVING: {
+            newStatusBarText = STATUS_BAR_TEXT_RECEIVING;
+            break;
+        }
+        case STATUS_BAR_STATUS_SENDING: {
+            newStatusBarText = STATUS_BAR_TEXT_SENDING;
+            break;
+        }
+    }
+
+    SendMessageW(MAIN_WINDOW_STATUS_BAR, SB_SETTEXTW, 0 | 0, (LPARAM)newStatusBarText);
+}
+
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (wMsg)
@@ -340,6 +377,11 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
             FillRect(hdc, &rect, backgroundBrush);
 
             return 1;
+        }
+        case WM_SIZE: {
+            SendMessageW(MAIN_WINDOW_STATUS_BAR, wMsg, wParam, lParam);
+
+            return 0;
         }
         case WM_COMMAND: {
             switch (LOWORD(wParam))
@@ -529,6 +571,42 @@ void ShowMainWindow(void)
         NULL);
 
     SendMessageW(SEND_FILE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+
+    MAIN_WINDOW_STATUS_BAR = CreateWindowW(
+        STATUSCLASSNAMEW,
+        NULL,
+        CCS_BOTTOM | WS_CHILD | WS_VISIBLE,
+        0,
+        0,
+        0,
+        0,
+        MAIN_WINDOW,
+        NULL,
+        MAIN_INSTANCE,
+        NULL);
+
+    int parts[2] = {MAIN_WINDOW_WIDTH / 3, -1};
+    SendMessageW(MAIN_WINDOW_STATUS_BAR, SB_SETPARTS, (WPARAM)2, (LPARAM)parts);
+
+    SendMessageW(MAIN_WINDOW_STATUS_BAR, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+
+    RECT rcPart;
+    SendMessageW(MAIN_WINDOW_STATUS_BAR, SB_GETRECT, (WPARAM)1, (LPARAM)&rcPart);
+
+    MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR = CreateWindowW(
+        PROGRESS_CLASSW,
+        NULL,
+        WS_CHILD | WS_VISIBLE,
+        rcPart.left + 2,
+        rcPart.top + 2,
+        (rcPart.right - rcPart.left) - 4,
+        (rcPart.bottom - rcPart.top) - 4,
+        MAIN_WINDOW_STATUS_BAR,
+        NULL,
+        MAIN_INSTANCE,
+        NULL);
+
+    SetStatusBarText(STATUS_BAR_STATUS_READY);
 
     UpdatePortSelectList();
 
