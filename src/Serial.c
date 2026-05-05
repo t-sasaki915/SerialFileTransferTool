@@ -154,20 +154,25 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                 switch (CURRENT_RECEIVE_STAGE)
                 {
                     case RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE: {
-                        if (comStat.cbInQue >= 24)
+                        if (comStat.cbInQue >= (3 * sizeof(uint64_t)))
                         {
                             uint64_t readBuffer[3];
                             DWORD bytesRead;
-                            if (!ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 24, &bytesRead, NULL))
+                            if (!ReadFile(
+                                    RECEIVING_COM_PORT_HANDLE,
+                                    readBuffer,
+                                    3 * sizeof(uint64_t),
+                                    &bytesRead,
+                                    NULL))
                             {
                                 CannotReadCOMPortError();
 
                                 return 0;
                             }
 
-                            if (bytesRead != 24)
+                            if (bytesRead != (3 * sizeof(uint64_t)))
                             {
-                                BytesReadMismatchError(24, bytesRead);
+                                BytesReadMismatchError(3 * sizeof(uint64_t), bytesRead);
 
                                 return 0;
                             }
