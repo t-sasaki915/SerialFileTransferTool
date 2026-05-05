@@ -3,11 +3,8 @@
 #include <windows.h>
 
 #include "UI.h"
+#include "Serial.h"
 
-#define SFTT_SERIAL_START_SIGNATURE 0x4F8A2B9C1E3D7654ULL
-#define SFTT_SERIAL_FINAL_SIGNATURE 0xB2E1094D6F83A57CULL
-
-#define COM_PORT_TRY_MAX 20
 #define MAX_PATH_LENGTH 260
 
 #define WM_SFTT_TEST WM_USER + 1
@@ -466,12 +463,12 @@ void SendFile(void)
 
     WriteFile(hComPort, fileName, fileNameSize, &bytesWritten, NULL);
 
-    /*BYTE binBuffer[4096];
+    BYTE binBuffer[4096];
     DWORD bytesRead;
     while (ReadFile(hFileToSend, binBuffer, sizeof(binBuffer), &bytesRead, NULL) && bytesRead > 0)
     {
         WriteFile(hComPort, binBuffer, bytesRead, &bytesWritten, NULL);
-    }*/
+    }
 
     sendBuffer[0] = SFTT_SERIAL_FINAL_SIGNATURE;
     WriteFile(hComPort, sendBuffer, 8, &bytesWritten, NULL);

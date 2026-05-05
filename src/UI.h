@@ -1,4 +1,5 @@
-#include <windows.h>
+#ifndef UI_H
+#define UI_H
 
 #define UI_FONT_NAME L"Tahoma"
 #define UI_FONT_SIZE 15
@@ -73,3 +74,7 @@
 #define SEND_FILE_BUTTON_WIDTH 253
 #define SEND_FILE_BUTTON_HEIGHT 40
 #define SEND_FILE_BUTTON_ID 105
+
+void UIStopReceiving(void);
+
+#endif
