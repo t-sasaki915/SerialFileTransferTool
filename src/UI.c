@@ -4,9 +4,85 @@
 #include "UI.h"
 #include "Util.h"
 
+#define WM_SFTT_SHOW_ERROR_DIALOG WM_USER + 1
+
+#define UI_FONT_NAME L"Tahoma"
+#define UI_FONT_SIZE 15
+
+#define MAIN_WINDOW_CLASS_NAME L"SFTT_MAINWINDOW_CLASS"
+#define MAIN_WINDOW_TITLE_SEND_MODE L"SFTT - Send"
+#define MAIN_WINDOW_TITLE_RECEIVE_MODE L"SFTT - Receive"
+#define MAIN_WINDOW_WIDTH 274
+#define MAIN_WINDOW_HEIGHT_SEND_MODE 177
+#define MAIN_WINDOW_HEIGHT_RECEIVE_MODE 150
+
+#define PORT_SELECT_LABEL_TEXT L"Port: "
+#define PORT_SELECT_LABEL_TEXT_LENGTH 6
+#define PORT_SELECT_LABEL_X 5
+#define PORT_SELECT_LABEL_Y 7
+
+#define PORT_SELECT_COMBOBOX_X 35
+#define PORT_SELECT_COMBOBOX_Y 4
+#define PORT_SELECT_COMBOBOX_WIDTH 150
+#define PORT_SELECT_COMBOBOX_HEIGHT 200
+#define PORT_SELECT_COMBOBOX_ID 1000
+
+#define PORT_SELECT_UPDATE_BUTTON_LABEL L"Update"
+#define PORT_SELECT_UPDATE_BUTTON_X 190
+#define PORT_SELECT_UPDATE_BUTTON_Y 4
+#define PORT_SELECT_UPDATE_BUTTON_WIDTH 70
+#define PORT_SELECT_UPDATE_BUTTON_HEIGHT 20
+#define PORT_SELECT_UPDATE_BUTTON_ID 100
+
+#define MODE_CHANGE_BUTTON_SEND_MODE_LABEL L"Send Mode"
+#define MODE_CHANGE_BUTTON_SEND_MODE_X 7
+#define MODE_CHANGE_BUTTON_SEND_MODE_Y 30
+#define MODE_CHANGE_BUTTON_SEND_MODE_WIDTH 123
+#define MODE_CHANGE_BUTTON_SEND_MODE_HEIGHT 40
+#define MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID 101
+
+#define MODE_CHANGE_BUTTON_RECEIVE_MODE_LABEL L"Receive Mode"
+#define MODE_CHANGE_BUTTON_RECEIVE_MODE_X 137
+#define MODE_CHANGE_BUTTON_RECEIVE_MODE_Y 30
+#define MODE_CHANGE_BUTTON_RECEIVE_MODE_WIDTH 123
+#define MODE_CHANGE_BUTTON_RECEIVE_MODE_HEIGHT 40
+#define MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID 102
+
+#define START_RECEIVING_BUTTON_LABEL_START L"Start Receiving"
+#define START_RECEIVING_BUTTON_LABEL_STOP L"Stop Receiving"
+#define START_RECEIVING_BUTTON_X 7
+#define START_RECEIVING_BUTTON_Y 76
+#define START_RECEIVING_BUTTON_WIDTH 253
+#define START_RECEIVING_BUTTON_HEIGHT 40
+#define START_RECEIVING_BUTTON_ID 103
+
+#define FILE_TO_SEND_LABEL_TEXT L"File: "
+#define FILE_TO_SEND_LABEL_TEXT_LENGTH 6
+#define FILE_TO_SEND_LABEL_X 8
+#define FILE_TO_SEND_LABEL_Y 79
+
+#define SEND_FILE_PATH_TEXTBOX_X 35
+#define SEND_FILE_PATH_TEXTBOX_Y 76
+#define SEND_FILE_PATH_TEXTBOX_WIDTH 148
+#define SEND_FILE_PATH_TEXTBOX_HEIGHT 20
+
+#define SEND_FILE_PATH_BROWSE_BUTTON_LABEL L"Browse"
+#define SEND_FILE_PATH_BROWSE_BUTTON_X 190
+#define SEND_FILE_PATH_BROWSE_BUTTON_Y 76
+#define SEND_FILE_PATH_BROWSE_BUTTON_WIDTH 70
+#define SEND_FILE_PATH_BROWSE_BUTTON_HEIGHT 20
+#define SEND_FILE_PATH_BROWSE_BUTTON_ID 104
+
+#define SEND_FILE_BUTTON_LABEL L"Send a File"
+#define SEND_FILE_BUTTON_X 7
+#define SEND_FILE_BUTTON_Y 103
+#define SEND_FILE_BUTTON_WIDTH 253
+#define SEND_FILE_BUTTON_HEIGHT 40
+#define SEND_FILE_BUTTON_ID 105
+
 HINSTANCE MAIN_INSTANCE;
 
-WNDPROC MAIN_WNDPROC;
+LogicSet MAIN_LOGIC_SET;
 
 HFONT UI_FONT;
 
@@ -22,11 +98,11 @@ HWND SEND_FILE_BUTTON;
 
 ApplicationMode CURRENT_APPLICATION_MODE;
 
-void InitialiseUI(WNDPROC mainWndProc)
+void InitialiseUI(LogicSet mainLogicSet)
 {
     MAIN_INSTANCE = GetModuleHandleW(NULL);
 
-    MAIN_WNDPROC = mainWndProc;
+    MAIN_LOGIC_SET = mainLogicSet;
 
     UI_FONT = CreateFontW(
         UI_FONT_SIZE,
@@ -181,45 +257,113 @@ void EnableSetModeControls(BOOL enable)
     EnableWindow(SEND_FILE_BUTTON, enable);
 }
 
-void PaintMainWindow(void)
-{
-    HDC hdc;
-    PAINTSTRUCT ps;
-
-    hdc = BeginPaint(MAIN_WINDOW, &ps);
-
-    HFONT oldFont = (HFONT)SelectObject(hdc, UI_FONT);
-
-    TextOutW(hdc, PORT_SELECT_LABEL_X, PORT_SELECT_LABEL_Y, PORT_SELECT_LABEL_TEXT, PORT_SELECT_LABEL_TEXT_LENGTH);
-
-    if (CURRENT_APPLICATION_MODE == APPLICATION_MODE_SEND_MODE)
-    {
-        TextOutW(
-            hdc,
-            FILE_TO_SEND_LABEL_X,
-            FILE_TO_SEND_LABEL_Y,
-            FILE_TO_SEND_LABEL_TEXT,
-            FILE_TO_SEND_LABEL_TEXT_LENGTH);
-    }
-
-    SelectObject(hdc, oldFont);
-
-    EndPaint(MAIN_WINDOW, &ps);
-}
-
-void EraseWindowBackground(HWND hwnd, HDC hdc)
-{
-    RECT rect;
-    GetClientRect(hwnd, &rect);
-
-    HBRUSH backgroundBrush = GetSysColorBrush(COLOR_WINDOW);
-    FillRect(hdc, &rect, backgroundBrush);
-}
-
 void RequestErrorDialog(wchar_t *msg)
 {
     wchar_t *persistentMsg = _wcsdup(msg);
     SendMessageW(MAIN_WINDOW, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)persistentMsg, (LPARAM)0);
+}
+
+LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (wMsg)
+    {
+        case WM_SFTT_SHOW_ERROR_DIALOG: {
+            wchar_t *msg = (wchar_t *)wParam;
+
+            MessageBoxW(MAIN_WINDOW, msg, L"SFTT", MB_ICONERROR | MB_OK);
+
+            free(msg);
+
+            return 0;
+        }
+        case WM_DESTROY: {
+            PostQuitMessage(0);
+
+            return 0;
+        }
+        case WM_PAINT: {
+            HDC hdc;
+            PAINTSTRUCT ps;
+
+            hdc = BeginPaint(hwnd, &ps);
+
+            HFONT oldFont = (HFONT)SelectObject(hdc, UI_FONT);
+
+            TextOutW(
+                hdc,
+                PORT_SELECT_LABEL_X,
+                PORT_SELECT_LABEL_Y,
+                PORT_SELECT_LABEL_TEXT,
+                PORT_SELECT_LABEL_TEXT_LENGTH);
+
+            if (CURRENT_APPLICATION_MODE == APPLICATION_MODE_SEND_MODE)
+            {
+                TextOutW(
+                    hdc,
+                    FILE_TO_SEND_LABEL_X,
+                    FILE_TO_SEND_LABEL_Y,
+                    FILE_TO_SEND_LABEL_TEXT,
+                    FILE_TO_SEND_LABEL_TEXT_LENGTH);
+            }
+
+            SelectObject(hdc, oldFont);
+
+            EndPaint(hwnd, &ps);
+
+            return 0;
+        }
+        case WM_ERASEBKGND: {
+            HDC hdc = (HDC)wParam;
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+
+            HBRUSH backgroundBrush = GetSysColorBrush(COLOR_WINDOW);
+            FillRect(hdc, &rect, backgroundBrush);
+
+            return 1;
+        }
+        case WM_COMMAND: {
+            switch (LOWORD(wParam))
+            {
+                case PORT_SELECT_UPDATE_BUTTON_ID: {
+                    MAIN_LOGIC_SET.onPortSelectUpdateButton();
+
+                    return 0;
+                }
+                case MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID: {
+                    MAIN_LOGIC_SET.onModeChangeButtonSendMode();
+
+                    return 0;
+                }
+                case MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID: {
+                    MAIN_LOGIC_SET.onModeChangeButtonReceiveMode();
+
+                    return 0;
+                }
+                case START_RECEIVING_BUTTON_ID: {
+                    MAIN_LOGIC_SET.onStartReceivingButton();
+
+                    return 0;
+                }
+                case SEND_FILE_PATH_BROWSE_BUTTON_ID: {
+                    MAIN_LOGIC_SET.onSendFilePathBrowseButton();
+
+                    return 0;
+                }
+                case SEND_FILE_BUTTON_ID: {
+                    MAIN_LOGIC_SET.onSendFileButton();
+
+                    return 0;
+                }
+                default: {
+                    return DefWindowProcW(hwnd, wMsg, wParam, lParam);
+                }
+            }
+        }
+        default: {
+            return DefWindowProcW(hwnd, wMsg, wParam, lParam);
+        }
+    }
 }
 
 void ShowMainWindow(void)
@@ -230,7 +374,7 @@ void ShowMainWindow(void)
     mainWindowClass.lpszClassName = MAIN_WINDOW_CLASS_NAME;
     mainWindowClass.hInstance = MAIN_INSTANCE;
     mainWindowClass.style = CS_VREDRAW | CS_HREDRAW;
-    mainWindowClass.lpfnWndProc = MAIN_WNDPROC;
+    mainWindowClass.lpfnWndProc = MainWindowWndProc;
 
     RegisterClassExW(&mainWindowClass);
 

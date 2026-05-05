@@ -7,146 +7,90 @@
 #include "UI.h"
 #include "Util.h"
 
-#define WM_SFTT_TEST WM_USER + 1
-
-LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
+void OnModeChangeButtonSendMode(void)
 {
-    switch (wMsg)
+    SetApplicationMode(APPLICATION_MODE_SEND_MODE);
+}
+
+void OnModeChangeButtonReceiveMode(void)
+{
+    SetApplicationMode(APPLICATION_MODE_RECEIVE_MODE);
+}
+
+void OnStartReceivingButton(void)
+{
+    if (IsReceiving())
     {
-        /*case WM_SFTT_TEST: {
-            wchar_t msg[1000];
-            Format(
-                msg,
-                1000,
-                L"Final Signature Matched.\nFile Size: %" PRId64 "\nFile Name Size: %" PRId64 "\nFile Name: %ls",
-                RECEIVING_FILE_SIZE,
-                RECEIVING_FILE_NAME_SIZE,
-                RECEIVING_FILE_NAME);
+        StopReceiving();
+    }
+    else
+    {
+        wchar_t *selectedPortName;
+        if (!GetSelectedPortName(&selectedPortName))
+        {
+            PleaseSpecifyPortError();
 
-            MessageBoxW(MAIN_WINDOW, msg, L"", MB_OK);
-
-            free(RECEIVING_FILE_NAME);
-
-            return 0;
-            }*/
-        case WM_SFTT_SHOW_ERROR_DIALOG: {
-            wchar_t *msg = (wchar_t *)wParam;
-
-            MessageBoxW(NULL, msg, L"SFTT", MB_ICONERROR | MB_OK); // TODO
-
-            free(msg);
-
-            return 0;
+            return;
         }
-        case WM_DESTROY: {
-            PostQuitMessage(0);
 
-            return 0;
-        }
-        case WM_PAINT: {
-            PaintMainWindow();
+        if (!StartReceiving(selectedPortName))
+        {
+            CannotOpenCOMPortError(selectedPortName);
 
-            return 0;
-        }
-        case WM_ERASEBKGND: {
-            EraseWindowBackground(hwnd, (HDC)wParam);
-
-            return 1;
-        }
-        case WM_COMMAND: {
-            switch (LOWORD(wParam))
-            {
-                case PORT_SELECT_UPDATE_BUTTON_ID: {
-                    UpdatePortSelectList();
-
-                    return 0;
-                }
-                case MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID: {
-                    SetApplicationMode(APPLICATION_MODE_SEND_MODE);
-
-                    return 0;
-                }
-                case MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID: {
-                    SetApplicationMode(APPLICATION_MODE_RECEIVE_MODE);
-
-                    return 0;
-                }
-                case START_RECEIVING_BUTTON_ID: {
-                    if (IsReceiving())
-                    {
-                        StopReceiving();
-                    }
-                    else
-                    {
-                        wchar_t *selectedPortName;
-                        if (!GetSelectedPortName(&selectedPortName))
-                        {
-                            PleaseSpecifyPortError();
-
-                            return 0;
-                        }
-
-                        if (!StartReceiving(selectedPortName))
-                        {
-                            CannotOpenCOMPortError(selectedPortName);
-
-                            return 0;
-                        }
-                    }
-
-                    return 0;
-                }
-                case SEND_FILE_PATH_BROWSE_BUTTON_ID: {
-                    wchar_t filePath[MAX_PATH_LENGTH] = L"";
-
-                    if (BrowseFileToSend(filePath))
-                    {
-                        UpdateSendFilePathTextbox(filePath);
-                    }
-
-                    return 0;
-                }
-                case SEND_FILE_BUTTON_ID: {
-                    wchar_t *selectedPortName;
-                    if (!GetSelectedPortName(&selectedPortName))
-                    {
-                        PleaseSpecifyPortError();
-
-                        return 0;
-                    }
-
-                    wchar_t filePath[MAX_PATH_LENGTH];
-                    GetSendFilePath(filePath);
-                    if (wcslen(filePath) == 0)
-                    {
-                        PleaseSpecifyFilePathError();
-
-                        return 0;
-                    }
-
-                    EnableSetModeControls(FALSE);
-
-                    SendFile(selectedPortName, filePath);
-
-                    EnableSetModeControls(TRUE);
-
-                    return 0;
-                }
-                default: {
-                    return DefWindowProcW(hwnd, wMsg, wParam, lParam);
-                }
-            }
-        }
-        default: {
-            return DefWindowProcW(hwnd, wMsg, wParam, lParam);
+            return;
         }
     }
 }
 
+void OnSendFilePathBrowseButton(void)
+{
+    wchar_t filePath[MAX_PATH_LENGTH] = L"";
+
+    if (BrowseFileToSend(filePath))
+    {
+        UpdateSendFilePathTextbox(filePath);
+    }
+}
+
+void OnSendFileButton(void)
+{
+    wchar_t *selectedPortName;
+    if (!GetSelectedPortName(&selectedPortName))
+    {
+        PleaseSpecifyPortError();
+
+        return;
+    }
+
+    wchar_t filePath[MAX_PATH_LENGTH];
+    GetSendFilePath(filePath);
+    if (wcslen(filePath) == 0)
+    {
+        PleaseSpecifyFilePathError();
+
+        return;
+    }
+
+    EnableSetModeControls(FALSE);
+
+    SendFile(selectedPortName, filePath);
+
+    EnableSetModeControls(TRUE);
+}
+
 int main(void)
 {
+    LogicSet logicSet;
+    ZeroMemory(&logicSet, sizeof(logicSet));
+    logicSet.onPortSelectUpdateButton = UpdatePortSelectList;
+    logicSet.onModeChangeButtonSendMode = OnModeChangeButtonSendMode;
+    logicSet.onModeChangeButtonReceiveMode = OnModeChangeButtonReceiveMode;
+    logicSet.onStartReceivingButton = OnStartReceivingButton;
+    logicSet.onSendFilePathBrowseButton = OnSendFilePathBrowseButton;
+    logicSet.onSendFileButton = OnSendFileButton;
+
     InitialiseSerial();
-    InitialiseUI(MainWindowWndProc);
+    InitialiseUI(logicSet);
 
     ShowMainWindow();
 
