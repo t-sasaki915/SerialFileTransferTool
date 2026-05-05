@@ -1,8 +1,7 @@
-#include <windows.h>
 #include <stdint.h>
+#include <windows.h>
 
 #include "Serial.h"
-#include "UI.h"
 #include "Util.h"
 
 typedef enum
@@ -59,7 +58,7 @@ void GetAvailablePorts(AvailablePort *availablePorts, int *numberOfAvailablePort
 {
     int numOfAvailablePorts = 0;
 
-    for (int i = 1 ; i <= COM_PORT_TRY_MAX; i++)
+    for (int i = 1; i <= COM_PORT_TRY_MAX; i++)
     {
         wchar_t friendlyPortName[10];
         Format(friendlyPortName, 10, L"COM%d", i);
@@ -184,9 +183,14 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                     case RECEIVE_STAGE_RECEIVING_FILE_NAME: {
                         if (comStat.cbInQue >= RECEIVING_FILE_NAME_SIZE)
                         {
-                            wchar_t *readBuffer = (wchar_t*)malloc(RECEIVING_FILE_NAME_SIZE);
+                            wchar_t *readBuffer = (wchar_t *)malloc(RECEIVING_FILE_NAME_SIZE);
                             DWORD bytesRead;
-                            if (!ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, RECEIVING_FILE_NAME_SIZE, &bytesRead, NULL))
+                            if (!ReadFile(
+                                    RECEIVING_COM_PORT_HANDLE,
+                                    readBuffer,
+                                    RECEIVING_FILE_NAME_SIZE,
+                                    &bytesRead,
+                                    NULL))
                             {
                                 // TODO ERROR
                                 return 0;
@@ -259,9 +263,10 @@ void StartReceiving(LPCWSTR portName)
     IS_RECEIVING = TRUE;
 }
 
-void SendFile(wchar_t* portName, wchar_t* filePath)
+void SendFile(wchar_t *portName, wchar_t *filePath)
 {
-    HANDLE handleFile = CreateFileW(filePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE handleFile =
+        CreateFileW(filePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (handleFile == INVALID_HANDLE_VALUE)
     {
         // TODO ERROR
@@ -269,7 +274,7 @@ void SendFile(wchar_t* portName, wchar_t* filePath)
     }
 
     LARGE_INTEGER fileSize;
-    fileSize.LowPart = (LONG)GetFileSize(handleFile, (DWORD*)&fileSize.HighPart);
+    fileSize.LowPart = (LONG)GetFileSize(handleFile, (DWORD *)&fileSize.HighPart);
     if (fileSize.LowPart == INVALID_FILE_SIZE)
     {
         // TODO ERROR
@@ -292,11 +297,7 @@ void SendFile(wchar_t* portName, wchar_t* filePath)
 
     DWORD bytesWritten;
 
-    uint64_t sendBuffer[3] =  {
-        SFTT_SERIAL_START_SIGNATURE,
-        (uint64_t)fileSize.QuadPart,
-        (uint64_t)fileNameSize
-    };
+    uint64_t sendBuffer[3] = {SFTT_SERIAL_START_SIGNATURE, (uint64_t)fileSize.QuadPart, (uint64_t)fileNameSize};
     if (!WriteFile(hComPort, sendBuffer, sizeof(sendBuffer), &bytesWritten, NULL))
     {
         // TODO ERROR
@@ -341,7 +342,7 @@ void SendFile(wchar_t* portName, wchar_t* filePath)
         }
     }
 
-    uint64_t sendBuffer2[1] = { SFTT_SERIAL_FINAL_SIGNATURE };
+    uint64_t sendBuffer2[1] = {SFTT_SERIAL_FINAL_SIGNATURE};
     if (!WriteFile(hComPort, sendBuffer2, sizeof(sendBuffer2), &bytesWritten, NULL))
     {
         // TODO ERROR

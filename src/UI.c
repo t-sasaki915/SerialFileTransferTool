@@ -1,8 +1,8 @@
 #include <windows.h>
 
+#include "Serial.h"
 #include "UI.h"
 #include "Util.h"
-#include "Serial.h"
 
 HINSTANCE MAIN_INSTANCE;
 
@@ -54,7 +54,7 @@ void FreePortSelectListPortNamePointers(void)
         LRESULT itemData = SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETITEMDATA, (WPARAM)i, (LPARAM)0);
         if (itemData != CB_ERR && itemData != 0)
         {
-            free ((wchar_t *)itemData);
+            free((wchar_t *)itemData);
         }
     }
 
@@ -77,7 +77,8 @@ void UpdatePortSelectList(void)
         AvailablePort port = availablePorts[i];
         wchar_t *persistentPortName = _wcsdup(port.portName);
 
-        int itemIndex = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_ADDSTRING, (WPARAM)0, (LPARAM)port.friendlyPortName);
+        int itemIndex =
+            (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_ADDSTRING, (WPARAM)0, (LPARAM)port.friendlyPortName);
         SendMessageW(PORT_SELECT_COMBO_BOX, CB_SETITEMDATA, (WPARAM)itemIndex, (LPARAM)persistentPortName);
     }
 
@@ -108,7 +109,14 @@ void SetApplicationMode(ApplicationMode appMode)
     }
 
     SendMessageW(MAIN_WINDOW, WM_SETTEXT, (WPARAM)0, (LPARAM)newMainWindowTitle);
-    SetWindowPos(MAIN_WINDOW, NULL, 0, 0, MAIN_WINDOW_WIDTH, newMainWindowHeight, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER);
+    SetWindowPos(
+        MAIN_WINDOW,
+        NULL,
+        0,
+        0,
+        MAIN_WINDOW_WIDTH,
+        newMainWindowHeight,
+        SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER);
 
     int receiveModeComponentShowMode = (appMode == APPLICATION_MODE_RECEIVE_MODE) ? SW_SHOW : SW_HIDE;
     ShowWindow(START_RECEIVING_BUTTON, receiveModeComponentShowMode);
@@ -179,12 +187,7 @@ void PaintMainWindow(void)
 
     HFONT oldFont = (HFONT)SelectObject(hdc, UI_FONT);
 
-    TextOutW(
-        hdc,
-        PORT_SELECT_LABEL_X,
-        PORT_SELECT_LABEL_Y,
-        PORT_SELECT_LABEL_TEXT,
-        PORT_SELECT_LABEL_TEXT_LENGTH);
+    TextOutW(hdc, PORT_SELECT_LABEL_X, PORT_SELECT_LABEL_Y, PORT_SELECT_LABEL_TEXT, PORT_SELECT_LABEL_TEXT_LENGTH);
 
     if (CURRENT_APPLICATION_MODE == APPLICATION_MODE_SEND_MODE)
     {

@@ -2,9 +2,10 @@
 #include <stdint.h>
 #include <windows.h>
 
-#include "UI.h"
 #include "Serial.h"
+#include "UI.h"
 #include "Util.h"
+
 
 #define WM_SFTT_TEST WM_USER + 1
 

@@ -24,7 +24,7 @@ void StopReceiving(void);
 
 void StartReceiving(LPCWSTR portName);
 
-void SendFile(wchar_t* portName, wchar_t* filePath);
+void SendFile(wchar_t *portName, wchar_t *filePath);
 
 void FinaliseSerial(void);
 
