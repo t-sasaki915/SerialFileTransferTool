@@ -167,8 +167,8 @@ void SetApplicationMode(ApplicationMode appMode)
 {
     CURRENT_APPLICATION_MODE = appMode;
 
-    LPCWSTR newMainWindowTitle;
-    int newMainWindowHeight;
+    LPCWSTR newMainWindowTitle = L"";
+    int newMainWindowHeight = 0;
     switch (appMode)
     {
         case APPLICATION_MODE_SEND_MODE: {

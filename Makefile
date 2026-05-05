@@ -1,5 +1,8 @@
 CC = gcc
-CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -mwindows
+STRIP = strip
+
+# The '-Wpedantic' option may be removed in older environments such as Windows 2000.
+CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -mwindows -Os -fno-ident
 LDFLAGS = -static -static-libgcc -lgdi32 -lcomdlg32
 
 BIN_NAME = SerialFileTransferTool.exe
@@ -11,6 +14,7 @@ all: $(BIN_NAME) $(C_SOURCES) $(C_HEADERS)
 
 $(BIN_NAME): $(C_SOURCES) $(C_HEADERS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $(BIN_NAME) $(C_SOURCES)
+	$(STRIP) $(BIN_NAME)
 
 clean:
 	del $(BIN_NAME)
