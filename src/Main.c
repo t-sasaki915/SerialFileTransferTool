@@ -20,6 +20,7 @@ void OnStartReceivingButton(void)
     if (IsReceiving())
     {
         StopReceiving();
+        UIStopReceiving();
     }
     else
     {
@@ -31,8 +32,15 @@ void OnStartReceivingButton(void)
             return;
         }
 
-        if (!StartReceiving(selectedPortName))
+        if (StartReceiving(selectedPortName))
         {
+            UIStartReceiving();
+        }
+        else
+        {
+            StopReceiving();
+            UIStopReceiving();
+
             CannotOpenCOMPortError(selectedPortName);
 
             return;

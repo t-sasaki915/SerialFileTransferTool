@@ -48,6 +48,10 @@ void GetSendFilePath(wchar_t *resultPtr);
 
 void RequestErrorDialog(wchar_t *msg);
 
+void UIStopReceiving(void);
+
+void UIStartReceiving(void);
+
 void EnableSetModeControls(BOOL enable);
 
 void FinaliseUI(void);

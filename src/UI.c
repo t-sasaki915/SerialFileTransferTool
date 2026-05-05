@@ -151,11 +151,12 @@ void UpdatePortSelectList(void)
     for (int i = 0; i < numberOfAvailablePorts; i++)
     {
         AvailablePort port = availablePorts[i];
-        wchar_t *persistentPortName = _wcsdup(port.portName);
 
         int itemIndex =
             (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_ADDSTRING, (WPARAM)0, (LPARAM)port.friendlyPortName);
-        SendMessageW(PORT_SELECT_COMBO_BOX, CB_SETITEMDATA, (WPARAM)itemIndex, (LPARAM)persistentPortName);
+        SendMessageW(PORT_SELECT_COMBO_BOX, CB_SETITEMDATA, (WPARAM)itemIndex, (LPARAM)port.portName);
+
+        free(port.friendlyPortName);
     }
 
     EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
@@ -261,6 +262,16 @@ void RequestErrorDialog(wchar_t *msg)
 {
     wchar_t *persistentMsg = _wcsdup(msg);
     SendMessageW(MAIN_WINDOW, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)persistentMsg, (LPARAM)0);
+}
+
+void UIStopReceiving(void)
+{
+    SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_START);
+}
+
+void UIStartReceiving(void)
+{
+    SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_STOP);
 }
 
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)

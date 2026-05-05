@@ -72,8 +72,8 @@ void GetAvailablePorts(AvailablePort *availablePorts, int *numberOfAvailablePort
         HANDLE hComm;
         if (OpenCOMPort(portName, &hComm))
         {
-            availablePorts[numOfAvailablePorts].friendlyPortName = friendlyPortName;
-            availablePorts[numOfAvailablePorts].portName = portName;
+            availablePorts[numOfAvailablePorts].friendlyPortName = _wcsdup(friendlyPortName);
+            availablePorts[numOfAvailablePorts].portName = _wcsdup(portName);
 
             numOfAvailablePorts++;
 
@@ -263,8 +263,6 @@ BOOL StartReceiving(LPCWSTR portName)
 {
     if (!OpenCOMPort(portName, &RECEIVING_COM_PORT_HANDLE))
     {
-        StopReceiving();
-
         return FALSE;
     }
 
