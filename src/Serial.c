@@ -132,6 +132,11 @@ void StopReceiving(void)
     }
 }
 
+void CleanupCOMPort(void)
+{
+    PurgeComm(RECEIVING_COM_PORT_HANDLE, PURGE_RXCLEAR | PURGE_TXCLEAR | PURGE_RXABORT | PURGE_TXABORT);
+}
+
 DWORD WINAPI ReceiverThread(LPVOID lpParam)
 {
     (void)lpParam;
@@ -165,23 +170,26 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                                     &bytesRead,
                                     NULL))
                             {
+                                CleanupCOMPort();
                                 CannotReadCOMPortError();
 
-                                return 0;
+                                continue;
                             }
 
                             if (bytesRead != (3 * sizeof(uint64_t)))
                             {
+                                CleanupCOMPort();
                                 BytesReadMismatchError(3 * sizeof(uint64_t), bytesRead);
 
-                                return 0;
+                                continue;
                             }
 
                             if (readBuffer[0] != SFTT_SERIAL_START_SIGNATURE)
                             {
+                                CleanupCOMPort();
                                 SerialStartSignatureMismatchError(SFTT_SERIAL_START_SIGNATURE, readBuffer[0]);
 
-                                return 0;
+                                continue;
                             }
 
                             RECEIVING_FILE_SIZE = readBuffer[1];
@@ -190,7 +198,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                             CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_FILE_NAME;
                         }
 
-                        return 0;
+                        continue;
                     }
                     case RECEIVE_STAGE_RECEIVING_FILE_NAME: {
                         if (comStat.cbInQue >= RECEIVING_FILE_NAME_SIZE)
@@ -204,16 +212,18 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                                     &bytesRead,
                                     NULL))
                             {
+                                CleanupCOMPort();
                                 CannotReadCOMPortError();
 
-                                return 0;
+                                continue;
                             }
 
                             if (bytesRead != RECEIVING_FILE_NAME_SIZE)
                             {
+                                CleanupCOMPort();
                                 BytesReadMismatchError(RECEIVING_FILE_NAME_SIZE, bytesRead);
 
-                                return 0;
+                                continue;
                             }
 
                             RECEIVING_FILE_NAME = readBuffer;
@@ -221,10 +231,10 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                             CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE;
                         }
 
-                        return 0;
+                        continue;
                     }
                     case RECEIVE_STAGE_RECEIVING_BINARY: {
-                        return 0;
+                        continue;
                     }
                     case RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE: {
                         if (comStat.cbInQue >= 8)
@@ -233,23 +243,25 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                             DWORD bytesRead;
                             if (!ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 8, &bytesRead, NULL))
                             {
+                                CleanupCOMPort();
                                 CannotReadCOMPortError();
 
-                                return 0;
+                                continue;
                             }
 
                             if (readBuffer[0] != SFTT_SERIAL_FINAL_SIGNATURE)
                             {
+                                CleanupCOMPort();
                                 SerialFinalSignatureMismatchError(SFTT_SERIAL_FINAL_SIGNATURE, readBuffer[0]);
 
-                                return 0;
+                                continue;
                             }
 
                             // TODO
                             CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
                         }
 
-                        return 0;
+                        continue;
                     }
                 }
             }
