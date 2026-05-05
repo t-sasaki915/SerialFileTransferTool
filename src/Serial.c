@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <windows.h>
 
+#include "Error.h"
 #include "Serial.h"
 #include "Util.h"
 
@@ -159,19 +160,22 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                             DWORD bytesRead;
                             if (!ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 24, &bytesRead, NULL))
                             {
-                                // TODO ERROR
+                                CannotReadCOMPortError();
+
                                 return 0;
                             }
 
                             if (bytesRead != 24)
                             {
-                                // TODO ERROR
+                                BytesReadMismatchError(24, bytesRead);
+
                                 return 0;
                             }
 
                             if (readBuffer[0] != SFTT_SERIAL_START_SIGNATURE)
                             {
-                                // TODO ERROR
+                                SerialStartSignatureMismatchError(SFTT_SERIAL_START_SIGNATURE, readBuffer[0]);
+
                                 return 0;
                             }
 
@@ -195,13 +199,15 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                                     &bytesRead,
                                     NULL))
                             {
-                                // TODO ERROR
+                                CannotReadCOMPortError();
+
                                 return 0;
                             }
 
                             if (bytesRead != RECEIVING_FILE_NAME_SIZE)
                             {
-                                // TODO ERROR
+                                BytesReadMismatchError(RECEIVING_FILE_NAME_SIZE, bytesRead);
+
                                 return 0;
                             }
 
@@ -222,13 +228,15 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                             DWORD bytesRead;
                             if (!ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 8, &bytesRead, NULL))
                             {
-                                // TODO ERROR
+                                CannotReadCOMPortError();
+
                                 return 0;
                             }
 
                             if (readBuffer[0] != SFTT_SERIAL_FINAL_SIGNATURE)
                             {
-                                // TODO ERROR
+                                SerialFinalSignatureMismatchError(SFTT_SERIAL_FINAL_SIGNATURE, readBuffer[0]);
+
                                 return 0;
                             }
 
@@ -273,7 +281,8 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
         CreateFileW(filePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (handleFile == INVALID_HANDLE_VALUE)
     {
-        // TODO ERROR
+        CannotOpenFileError(filePath);
+
         return;
     }
 
@@ -281,7 +290,7 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
     fileSize.LowPart = (LONG)GetFileSize(handleFile, (DWORD *)&fileSize.HighPart);
     if (fileSize.LowPart == INVALID_FILE_SIZE)
     {
-        // TODO ERROR
+        CannotGetFileSizeError(filePath);
 
         CloseHandle(handleFile);
         return;
@@ -293,7 +302,7 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
     HANDLE hComPort;
     if (!OpenCOMPort(portName, &hComPort))
     {
-        // TODO ERROR
+        CannotOpenCOMPortError(portName);
 
         CloseHandle(handleFile);
         return;
@@ -304,26 +313,26 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
     uint64_t sendBuffer[3] = {SFTT_SERIAL_START_SIGNATURE, (uint64_t)fileSize.QuadPart, (uint64_t)fileNameSize};
     if (!WriteFile(hComPort, sendBuffer, sizeof(sendBuffer), &bytesWritten, NULL))
     {
-        // TODO ERROR
+        CannotWriteCOMPortError();
 
         goto CleanUp;
     }
     if (bytesWritten != sizeof(sendBuffer))
     {
-        // TODO ERROR
+        BytesWrittenMismatchError(sizeof(sendBuffer), bytesWritten);
 
         goto CleanUp;
     }
 
     if (!WriteFile(hComPort, fileName, fileNameSize, &bytesWritten, NULL))
     {
-        // TODO ERROR
+        CannotWriteCOMPortError();
 
         goto CleanUp;
     }
     if (bytesWritten != fileNameSize)
     {
-        // TODO ERROR
+        BytesWrittenMismatchError(fileNameSize, bytesWritten);
 
         goto CleanUp;
     }
@@ -334,13 +343,13 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
     {
         if (!WriteFile(hComPort, binBuffer, bytesRead, &bytesWritten, NULL))
         {
-            // TODO ERROR
+            CannotWriteCOMPortError();
 
             goto CleanUp;
         }
         if (bytesWritten != bytesRead)
         {
-            // TODO ERROR
+            BytesWrittenMismatchError(bytesRead, bytesWritten);
 
             goto CleanUp;
         }
@@ -349,13 +358,13 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
     uint64_t sendBuffer2[1] = {SFTT_SERIAL_FINAL_SIGNATURE};
     if (!WriteFile(hComPort, sendBuffer2, sizeof(sendBuffer2), &bytesWritten, NULL))
     {
-        // TODO ERROR
+        CannotWriteCOMPortError();
 
         goto CleanUp;
     }
     if (bytesWritten != sizeof(sendBuffer2))
     {
-        // TODO ERROR
+        BytesWrittenMismatchError(sizeof(sendBuffer2), bytesWritten);
 
         goto CleanUp;
     }

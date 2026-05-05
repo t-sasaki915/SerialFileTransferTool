@@ -1,5 +1,3 @@
-#include <inttypes.h>
-#include <stdint.h>
 #include <windows.h>
 
 #include "Error.h"
