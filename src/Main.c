@@ -6,7 +6,6 @@
 #include "UI.h"
 #include "Util.h"
 
-
 #define WM_SFTT_TEST WM_USER + 1
 
 #define CANNOT_OPEN_FILE_ERROR_TITLE L"SFTT"
@@ -108,8 +107,6 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     return 0;
                 }
                 case SEND_FILE_BUTTON_ID: {
-                    EnableSetModeControls(FALSE);
-
                     wchar_t *selectedPortName;
                     if (!GetSelectedPortName(&selectedPortName))
                     {
@@ -120,6 +117,14 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
                     wchar_t filePath[MAX_PATH_LENGTH];
                     GetSendFilePath(filePath);
+                    if (wcslen(filePath) == 0)
+                    {
+                        // TODO ERROR
+
+                        return 0;
+                    }
+
+                    EnableSetModeControls(FALSE);
 
                     SendFile(selectedPortName, filePath);
 

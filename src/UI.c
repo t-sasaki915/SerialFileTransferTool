@@ -118,6 +118,9 @@ void SetApplicationMode(ApplicationMode appMode)
         newMainWindowHeight,
         SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER);
 
+    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, (appMode != APPLICATION_MODE_SEND_MODE));
+    EnableWindow(MODE_CHANGE_BUTTON_RECEIVE_MODE, (appMode != APPLICATION_MODE_RECEIVE_MODE));
+
     int receiveModeComponentShowMode = (appMode == APPLICATION_MODE_RECEIVE_MODE) ? SW_SHOW : SW_HIDE;
     ShowWindow(START_RECEIVING_BUTTON, receiveModeComponentShowMode);
 

@@ -357,8 +357,14 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
     }
 
 CleanUp:
-    CloseHandle(hComPort);
-    CloseHandle(handleFile);
+    if (hComPort != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(hComPort);
+    }
+    if (handleFile != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(handleFile);
+    }
 }
 
 void FinaliseSerial(void)
