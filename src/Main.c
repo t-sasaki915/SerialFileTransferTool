@@ -2,26 +2,12 @@
 #include <stdint.h>
 #include <windows.h>
 
+#include "Error.h"
 #include "Serial.h"
 #include "UI.h"
 #include "Util.h"
 
 #define WM_SFTT_TEST WM_USER + 1
-
-#define CANNOT_OPEN_FILE_ERROR_TITLE L"SFTT"
-#define CANNOT_OPEN_FILE_ERROR_MSG L"Cannot open the file '%ls': %lu."
-#define CANNOT_OPEN_FILE_ERROR_MSG_LENGTH 350
-
-#define CANNOT_GET_FILE_SIZE_ERROR_TITLE L"SFTT"
-#define CANNOT_GET_FILE_SIZE_ERROR_MSG L"Cannot get the size of the file '%ls': %lu."
-#define CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH 400
-
-#define PLEASE_SPECIFY_PORT_ERROR_TITLE L"SFTT"
-#define PLEASE_SPECIFY_PORT_ERROR_MSG L"Please specify the port."
-
-#define CANNOT_OPEN_COM_PORT_ERROR_TITLE L"SFTT"
-#define CANNOT_OPEN_COM_PORT_ERROR_MSG L"Cannot open the COM port '%ls': %lu."
-#define CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH 100
 
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -43,6 +29,15 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
             return 0;
             }*/
+        case WM_SFTT_SHOW_ERROR_DIALOG: {
+            wchar_t *msg = (wchar_t *)wParam;
+
+            MessageBoxW(NULL, msg, L"SFTT", MB_ICONERROR | MB_OK); // TODO
+
+            free(msg);
+
+            return 0;
+        }
         case WM_DESTROY: {
             PostQuitMessage(0);
 
@@ -86,12 +81,17 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                         wchar_t *selectedPortName;
                         if (!GetSelectedPortName(&selectedPortName))
                         {
-                            // TODO ERROR
+                            PleaseSpecifyPortError();
 
                             return 0;
                         }
 
-                        StartReceiving(selectedPortName);
+                        if (!StartReceiving(selectedPortName))
+                        {
+                            CannotOpenCOMPortError(selectedPortName);
+
+                            return 0;
+                        }
                     }
 
                     return 0;
@@ -110,7 +110,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     wchar_t *selectedPortName;
                     if (!GetSelectedPortName(&selectedPortName))
                     {
-                        // TODO ERROR
+                        PleaseSpecifyPortError();
 
                         return 0;
                     }
@@ -119,7 +119,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     GetSendFilePath(filePath);
                     if (wcslen(filePath) == 0)
                     {
-                        // TODO ERROR
+                        PleaseSpecifyFilePathError();
 
                         return 0;
                     }

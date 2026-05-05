@@ -3,6 +3,8 @@
 
 #include <windows.h>
 
+#define WM_SFTT_SHOW_ERROR_DIALOG WM_USER + 1
+
 #define UI_FONT_NAME L"Tahoma"
 #define UI_FONT_SIZE 15
 
@@ -102,6 +104,8 @@ BOOL BrowseFileToSend(wchar_t *resultPtr);
 void UpdateSendFilePathTextbox(wchar_t *filePath);
 
 void GetSendFilePath(wchar_t *resultPtr);
+
+void RequestErrorDialog(wchar_t *msg);
 
 void EnableSetModeControls(BOOL enable);
 

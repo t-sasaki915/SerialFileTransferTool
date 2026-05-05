@@ -22,7 +22,7 @@ BOOL IsReceiving(void);
 
 void StopReceiving(void);
 
-void StartReceiving(LPCWSTR portName);
+BOOL StartReceiving(LPCWSTR portName);
 
 void SendFile(wchar_t *portName, wchar_t *filePath);
 

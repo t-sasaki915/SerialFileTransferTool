@@ -216,6 +216,12 @@ void EraseWindowBackground(HWND hwnd, HDC hdc)
     FillRect(hdc, &rect, backgroundBrush);
 }
 
+void RequestErrorDialog(wchar_t *msg)
+{
+    wchar_t *persistentMsg = _wcsdup(msg);
+    SendMessageW(MAIN_WINDOW, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)persistentMsg, (LPARAM)0);
+}
+
 void ShowMainWindow(void)
 {
     WNDCLASSEXW mainWindowClass;

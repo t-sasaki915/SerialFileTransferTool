@@ -243,14 +243,13 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
     return 0;
 }
 
-void StartReceiving(LPCWSTR portName)
+BOOL StartReceiving(LPCWSTR portName)
 {
     if (!OpenCOMPort(portName, &RECEIVING_COM_PORT_HANDLE))
     {
-        // TODO ERROR
-
         StopReceiving();
-        return;
+
+        return FALSE;
     }
 
     CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
@@ -261,6 +260,8 @@ void StartReceiving(LPCWSTR portName)
     RECEIVER_THREAD_HANDLE = CreateThread(NULL, 0, ReceiverThread, NULL, 0, NULL);
 
     IS_RECEIVING = TRUE;
+
+    return TRUE;
 }
 
 void SendFile(wchar_t *portName, wchar_t *filePath)
