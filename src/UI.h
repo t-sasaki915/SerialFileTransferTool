@@ -1,6 +1,7 @@
 #ifndef UI_H
 #define UI_H
 
+#include <stdint.h>
 #include <windows.h>
 
 typedef enum
@@ -61,7 +62,13 @@ void UIStartReceiving(void);
 
 void SetStatusBarText(StatusBarStatus status);
 
+void SetProgressBarRange(uint32_t max);
+
 void EnableSetModeControls(BOOL enable);
+
+void StepProgressBar(void);
+
+void ResetProgressBar(void);
 
 void FinaliseUI(void);
 

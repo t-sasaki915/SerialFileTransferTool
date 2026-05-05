@@ -1,5 +1,6 @@
 #define _WIN32_WINNT 0x0500
 
+#include <stdint.h>
 #include <windows.h>
 
 #include <commctrl.h>
@@ -110,10 +111,7 @@ ApplicationMode CURRENT_APPLICATION_MODE;
 
 void InitialiseUI(LogicSet mainLogicSet)
 {
-    INITCOMMONCONTROLSEX icce;
-    icce.dwSize = sizeof(icce);
-    icce.dwICC = ICC_BAR_CLASSES;
-    InitCommonControlsEx(&icce);
+    InitCommonControls();
 
     MAIN_INSTANCE = GetModuleHandleW(NULL);
 
@@ -317,6 +315,22 @@ void SetStatusBarText(StatusBarStatus status)
     }
 
     SendMessageW(MAIN_WINDOW_STATUS_BAR, SB_SETTEXTW, 0 | 0, (LPARAM)newStatusBarText);
+}
+
+void SetProgressBarRange(uint32_t max)
+{
+    SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_SETRANGE32, (WPARAM)0, (LPARAM)max);
+    SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_SETSTEP, (WPARAM)1, (LPARAM)0);
+}
+
+void StepProgressBar(void)
+{
+    SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_STEPIT, (WPARAM)0, (LPARAM)0);
+}
+
+void ResetProgressBar(void)
+{
+    SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_SETPOS, (WPARAM)0, (LPARAM)0);
 }
 
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
