@@ -267,11 +267,19 @@ void RequestErrorDialog(wchar_t *msg)
 void UIStopReceiving(void)
 {
     SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_START);
+
+    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
+    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
+    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, TRUE);
 }
 
 void UIStartReceiving(void)
 {
     SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_STOP);
+
+    EnableWindow(PORT_SELECT_COMBO_BOX, FALSE);
+    EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
+    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, FALSE);
 }
 
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
