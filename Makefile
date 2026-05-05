@@ -7,7 +7,7 @@ BIN_NAME = SerialFileTransferTool.exe
 all: $(BIN_NAME) src/*.*
 
 $(BIN_NAME): src/*.*
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $(BIN_NAME) src/Main.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(BIN_NAME) src/*.c
 
 clean:
 	del $(BIN_NAME)

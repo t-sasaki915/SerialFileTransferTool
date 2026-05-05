@@ -13,12 +13,6 @@ typedef enum
     RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE
 } ReceiveStage;
 
-typedef struct
-{
-    wchar_t *friendlyPortName;
-    wchar_t *portName;
-} AvailablePort;
-
 typedef BOOL(WINAPI *PCANCELIOEX)(HANDLE, LPOVERLAPPED);
 
 ReceiveStage CURRENT_RECEIVE_STAGE;
@@ -43,6 +37,11 @@ void InitialiseSerial(void)
     DEFAULT_DCB.fNull = FALSE;
 }
 
+BOOL IsReceiving(void)
+{
+    return IS_RECEIVING;
+}
+
 BOOL OpenCOMPort(LPCWSTR portName, HANDLE *resultPtr)
 {
     HANDLE hComPort = CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
@@ -56,9 +55,8 @@ BOOL OpenCOMPort(LPCWSTR portName, HANDLE *resultPtr)
     return TRUE;
 }
 
-void GetAvailablePorts(AvailablePort **resultPtr, int *numberOfAvailablePorts)
+void GetAvailablePorts(AvailablePort *availablePorts, int *numberOfAvailablePorts)
 {
-    AvailablePort availablePorts[COM_PORT_TRY_MAX];
     int numOfAvailablePorts = 0;
 
     for (int i = 1 ; i <= COM_PORT_TRY_MAX; i++)
@@ -71,9 +69,8 @@ void GetAvailablePorts(AvailablePort **resultPtr, int *numberOfAvailablePorts)
         HANDLE hComm;
         if (OpenCOMPort(portName, &hComm))
         {
-            wchar_t *persistentPortName = _wcsdup(portName);
             availablePorts[numOfAvailablePorts].friendlyPortName = friendlyPortName;
-            availablePorts[numOfAvailablePorts].portName = persistentPortName;
+            availablePorts[numOfAvailablePorts].portName = portName;
 
             numOfAvailablePorts++;
 
@@ -81,7 +78,6 @@ void GetAvailablePorts(AvailablePort **resultPtr, int *numberOfAvailablePorts)
         }
     }
 
-    *resultPtr = availablePorts;
     *numberOfAvailablePorts = numOfAvailablePorts;
 }
 
@@ -362,4 +358,12 @@ void SendFile(wchar_t* portName, wchar_t* filePath)
 CleanUp:
     CloseHandle(hComPort);
     CloseHandle(handleFile);
+}
+
+void FinaliseSerial(void)
+{
+    if (IS_RECEIVING)
+    {
+        StopReceiving();
+    }
 }

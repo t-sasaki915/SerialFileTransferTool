@@ -1,6 +1,8 @@
 #ifndef UI_H
 #define UI_H
 
+#include <windows.h>
+
 #define UI_FONT_NAME L"Tahoma"
 #define UI_FONT_SIZE 15
 
@@ -75,6 +77,34 @@
 #define SEND_FILE_BUTTON_HEIGHT 40
 #define SEND_FILE_BUTTON_ID 105
 
-void UIStopReceiving(void);
+typedef enum
+{
+    APPLICATION_MODE_SEND_MODE,
+    APPLICATION_MODE_RECEIVE_MODE
+} ApplicationMode;
+
+void InitialiseUI(WNDPROC mainWndProc);
+
+void SetApplicationMode(ApplicationMode appMode);
+
+void ShowMainWindow(void);
+
+void PaintMainWindow(void);
+
+void EraseWindowBackground(HWND hwnd, HDC hdc);
+
+void UpdatePortSelectList(void);
+
+BOOL GetSelectedPortName(wchar_t **resultPtr);
+
+BOOL BrowseFileToSend(wchar_t *resultPtr);
+
+void UpdateSendFilePathTextbox(wchar_t *filePath);
+
+void GetSendFilePath(wchar_t *resultPtr);
+
+void EnableSetModeControls(BOOL enable);
+
+void FinaliseUI(void);
 
 #endif

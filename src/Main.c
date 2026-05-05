@@ -4,8 +4,7 @@
 
 #include "UI.h"
 #include "Serial.h"
-
-#define MAX_PATH_LENGTH 260
+#include "Util.h"
 
 #define WM_SFTT_TEST WM_USER + 1
 
@@ -24,464 +23,11 @@
 #define CANNOT_OPEN_COM_PORT_ERROR_MSG L"Cannot open the COM port '%ls': %lu."
 #define CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH 100
 
-typedef enum
-{
-    APPLICATION_MODE_SEND_MODE,
-    APPLICATION_MODE_RECEIVE_MODE
-} ApplicationMode;
-
-typedef enum
-{
-    RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE,
-    RECEIVE_STAGE_RECEIVING_FILE_NAME,
-    RECEIVE_STAGE_RECEIVING_BINARY,
-    RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE
-} ReceiveStage;
-
-ApplicationMode CURRENT_APPLICATION_MODE;
-ReceiveStage CURRENT_RECEIVE_STAGE;
-uint64_t RECEIVING_FILE_SIZE;
-uint64_t RECEIVING_FILE_NAME_SIZE;
-wchar_t *RECEIVING_FILE_NAME;
-HANDLE RECEIVING_COM_PORT_HANDLE;
-HANDLE RECEIVER_THREAD_HANDLE;
-volatile BOOL IS_RECEIVING = FALSE;
-
-HFONT UI_FONT;
-
-HWND MAIN_WINDOW;
-HWND PORT_SELECT_COMBO_BOX;
-HWND PORT_SELECT_UPDATE_BUTTON;
-HWND MODE_CHANGE_BUTTON_SEND_MODE;
-HWND MODE_CHANGE_BUTTON_RECEIVE_MODE;
-HWND START_RECEIVING_BUTTON;
-HWND SEND_FILE_PATH_TEXTBOX;
-HWND SEND_FILE_PATH_BROWSE_BUTTON;
-HWND SEND_FILE_BUTTON;
-
-DCB DEFAULT_DCB;
-
-typedef int (*PVSWPRINTF_S)(wchar_t *, size_t, const wchar_t *, va_list);
-typedef BOOL(WINAPI *PCANCELIOEX)(HANDLE, LPOVERLAPPED);
-
-PVSWPRINTF_S FORMATTER = NULL;
-PCANCELIOEX CANCEL_IO_EX_FUNC;
-
-int Format(wchar_t *buffer, size_t count, const wchar_t *format, ...)
-{
-    int result = -1;
-
-    va_list args;
-    va_start(args, format);
-
-    if (FORMATTER == NULL)
-    {
-        union {
-            FARPROC addr;
-            PVSWPRINTF_S func;
-        } converter;
-
-        HMODULE msvcrt = GetModuleHandleW(L"msvcrt.dll");
-        converter.addr = GetProcAddress(msvcrt, "vswprintf_s");
-
-        if (converter.addr != NULL)
-        {
-            FORMATTER = converter.func;
-        }
-        else
-        {
-            converter.addr = GetProcAddress(msvcrt, "_vsnwprintf");
-            FORMATTER = converter.func;
-        }
-    }
-
-    result = FORMATTER(buffer, count, format, args);
-
-    va_end(args);
-
-    return result;
-}
-
-void FreePortListItemDataPointers(void)
-{
-    int itemCount = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETCOUNT, (WPARAM)0, (LPARAM)0);
-
-    for (int i = 0; i < itemCount; i++)
-    {
-        LRESULT itemData = SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETITEMDATA, (WPARAM)i, (LPARAM)0);
-        if (itemData != CB_ERR && itemData != 0)
-        {
-            free((wchar_t *)itemData);
-        }
-    }
-
-    SendMessageW(PORT_SELECT_COMBO_BOX, CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
-}
-
-void UpdatePortList(void)
-{
-    EnableWindow(PORT_SELECT_COMBO_BOX, FALSE);
-    EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
-
-    FreePortListItemDataPointers();
-
-    for (int i = 1; i <= COM_PORT_TRY_MAX; i++)
-    {
-        wchar_t friendlyPortName[10];
-        Format(friendlyPortName, 10, L"COM%d", i);
-        wchar_t portName[20];
-        Format(portName, 20, L"\\\\.\\%ls", friendlyPortName);
-
-        HANDLE hComm = CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-
-        if (hComm == INVALID_HANDLE_VALUE)
-        {
-            continue;
-        }
-
-        wchar_t *persistentPortName = _wcsdup(portName);
-        int index = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_ADDSTRING, (WPARAM)0, (LPARAM)friendlyPortName);
-        SendMessageW(PORT_SELECT_COMBO_BOX, CB_SETITEMDATA, (WPARAM)index, (LPARAM)persistentPortName);
-
-        CloseHandle(hComm);
-    }
-
-    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
-    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
-}
-
-void StopReceiverThread(void)
-{
-    if (CANCEL_IO_EX_FUNC == NULL)
-    {
-        union {
-            FARPROC addr;
-            PCANCELIOEX ptr;
-        } converter;
-
-        HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
-        converter.addr = GetProcAddress(kernel32, "CancelIoEx");
-
-        CANCEL_IO_EX_FUNC = converter.ptr;
-    }
-
-    if (CANCEL_IO_EX_FUNC != NULL)
-    {
-        CANCEL_IO_EX_FUNC(RECEIVING_COM_PORT_HANDLE, NULL);
-    }
-    else
-    {
-        TerminateThread(RECEIVER_THREAD_HANDLE, 0);
-    }
-}
-
-void StopReceiving(void)
-{
-    IS_RECEIVING = FALSE;
-
-    if (RECEIVER_THREAD_HANDLE != INVALID_HANDLE_VALUE)
-    {
-        StopReceiverThread();
-
-        WaitForSingleObject(RECEIVER_THREAD_HANDLE, 5000);
-
-        CloseHandle(RECEIVER_THREAD_HANDLE);
-        RECEIVER_THREAD_HANDLE = INVALID_HANDLE_VALUE;
-    }
-
-    if (RECEIVING_COM_PORT_HANDLE != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(RECEIVING_COM_PORT_HANDLE);
-        RECEIVING_COM_PORT_HANDLE = INVALID_HANDLE_VALUE;
-    }
-
-    SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_START);
-
-    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
-    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
-    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, TRUE);
-}
-
-BOOL OpenSelectedPort(HANDLE *resultPtr)
-{
-    int portListIndex = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETCURSEL, (WPARAM)0, (LPARAM)0);
-    LRESULT portListData = SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETITEMDATA, (WPARAM)portListIndex, (LPARAM)0);
-    if (portListData == CB_ERR || portListData == 0)
-    {
-        MessageBoxW(
-            MAIN_WINDOW,
-            PLEASE_SPECIFY_PORT_ERROR_MSG,
-            PLEASE_SPECIFY_PORT_ERROR_TITLE,
-            MB_ICONINFORMATION | MB_OK);
-
-        return FALSE;
-    }
-    wchar_t *portName = (wchar_t *)portListData;
-
-    HANDLE hComPort = CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-    if (hComPort == INVALID_HANDLE_VALUE)
-    {
-        wchar_t cannotOpenComPortMsg[CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH];
-        Format(
-            cannotOpenComPortMsg,
-            CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH,
-            CANNOT_OPEN_COM_PORT_ERROR_MSG,
-            portName,
-            GetLastError());
-
-        MessageBoxW(MAIN_WINDOW, cannotOpenComPortMsg, CANNOT_OPEN_COM_PORT_ERROR_TITLE, MB_ICONERROR | MB_OK);
-
-        return FALSE;
-    }
-
-    *resultPtr = hComPort;
-
-    return TRUE;
-}
-
-DWORD WINAPI ReceiverThread(LPVOID lpParam)
-{
-    (void)lpParam;
-
-    OVERLAPPED ov;
-    ZeroMemory(&ov, sizeof(ov));
-    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-
-    while (IS_RECEIVING)
-    {
-        DWORD dwEventMask;
-        if (WaitCommEvent(RECEIVING_COM_PORT_HANDLE, &dwEventMask, &ov))
-        {
-            if (dwEventMask & EV_RXCHAR)
-            {
-                COMSTAT comStat;
-                DWORD dwErrors;
-                ClearCommError(RECEIVING_COM_PORT_HANDLE, &dwErrors, &comStat);
-
-                switch (CURRENT_RECEIVE_STAGE)
-                {
-                    case RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE: {
-                        if (comStat.cbInQue >= 24)
-                        {
-                            uint64_t readBuffer[3];
-                            DWORD bytesRead;
-                            ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 24, &bytesRead, NULL);
-
-                            if (readBuffer[0] == SFTT_SERIAL_START_SIGNATURE)
-                            {
-                                RECEIVING_FILE_SIZE = readBuffer[1];
-                                RECEIVING_FILE_NAME_SIZE = readBuffer[2];
-
-                                CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_FILE_NAME;
-                            }
-                        }
-
-                        break;
-                    }
-                    case RECEIVE_STAGE_RECEIVING_FILE_NAME: {
-                        if (comStat.cbInQue >= RECEIVING_FILE_NAME_SIZE)
-                        {
-                            wchar_t *buffer = (wchar_t *)malloc(RECEIVING_FILE_NAME_SIZE);
-                            DWORD bytesRead;
-                            ReadFile(RECEIVING_COM_PORT_HANDLE, buffer, RECEIVING_FILE_NAME_SIZE, &bytesRead, NULL);
-
-                            RECEIVING_FILE_NAME = buffer;
-
-                            CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE;
-                        }
-
-                        break;
-                    }
-                    case RECEIVE_STAGE_RECEIVING_BINARY: {
-                        break;
-                    }
-                    case RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE: {
-                        if (comStat.cbInQue >= 8)
-                        {
-                            uint64_t readBuffer[1];
-                            DWORD bytesRead;
-                            ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 8, &bytesRead, NULL);
-
-                            if (readBuffer[0] == SFTT_SERIAL_FINAL_SIGNATURE)
-                            {
-                                SendMessageW(MAIN_WINDOW, WM_SFTT_TEST, (WPARAM)0, (LPARAM)0);
-
-                                CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
-                            }
-                        }
-
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    return 0;
-}
-
-void StartReceiving(void)
-{
-    SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_STOP);
-
-    EnableWindow(PORT_SELECT_COMBO_BOX, FALSE);
-    EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
-    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, FALSE);
-
-    if (!OpenSelectedPort(&RECEIVING_COM_PORT_HANDLE))
-    {
-        StopReceiving();
-
-        return;
-    }
-
-    CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
-
-    SetCommState(RECEIVING_COM_PORT_HANDLE, &DEFAULT_DCB);
-    SetCommMask(RECEIVING_COM_PORT_HANDLE, EV_RXCHAR);
-
-    RECEIVER_THREAD_HANDLE = CreateThread(NULL, 0, ReceiverThread, NULL, 0, NULL);
-
-    IS_RECEIVING = TRUE;
-}
-
-void SetApplicationMode(ApplicationMode appMode)
-{
-    CURRENT_APPLICATION_MODE = appMode;
-
-    LPCWSTR mainWindowTitle;
-    int mainWindowHeight;
-    switch (appMode)
-    {
-        case APPLICATION_MODE_SEND_MODE: {
-            mainWindowTitle = MAIN_WINDOW_TITLE_SEND_MODE;
-            mainWindowHeight = MAIN_WINDOW_HEIGHT_SEND_MODE;
-            break;
-        }
-        case APPLICATION_MODE_RECEIVE_MODE: {
-            mainWindowTitle = MAIN_WINDOW_TITLE_RECEIVE_MODE;
-            mainWindowHeight = MAIN_WINDOW_HEIGHT_RECEIVE_MODE;
-            break;
-        }
-    }
-
-    SendMessageW(MAIN_WINDOW, WM_SETTEXT, (WPARAM)0, (LPARAM)mainWindowTitle);
-    SetWindowPos(
-        MAIN_WINDOW,
-        NULL,
-        0,
-        0,
-        MAIN_WINDOW_WIDTH,
-        mainWindowHeight,
-        SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER);
-
-    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, appMode != APPLICATION_MODE_SEND_MODE);
-    EnableWindow(MODE_CHANGE_BUTTON_RECEIVE_MODE, appMode != APPLICATION_MODE_RECEIVE_MODE);
-
-    int startReceivingButtonShowMode = (appMode == APPLICATION_MODE_RECEIVE_MODE) ? SW_SHOW : SW_HIDE;
-    ShowWindow(START_RECEIVING_BUTTON, startReceivingButtonShowMode);
-
-    int sendModeComponentShowMode = (appMode == APPLICATION_MODE_SEND_MODE) ? SW_SHOW : SW_HIDE;
-    ShowWindow(SEND_FILE_PATH_TEXTBOX, sendModeComponentShowMode);
-    ShowWindow(SEND_FILE_PATH_BROWSE_BUTTON, sendModeComponentShowMode);
-    ShowWindow(SEND_FILE_BUTTON, sendModeComponentShowMode);
-
-    InvalidateRect(MAIN_WINDOW, NULL, FALSE);
-}
-
-wchar_t *GetFileName(wchar_t *filePath)
-{
-    wchar_t *lastSlash = wcsrchr(filePath, L'\\');
-    if (!lastSlash)
-    {
-        return filePath;
-    }
-
-    return lastSlash + 1;
-}
-
-void SendFile(void)
-{
-    wchar_t filePathToSend[MAX_PATH_LENGTH];
-    GetWindowTextW(SEND_FILE_PATH_TEXTBOX, filePathToSend, MAX_PATH_LENGTH);
-
-    HANDLE hFileToSend =
-        CreateFileW(filePathToSend, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-
-    if (hFileToSend == INVALID_HANDLE_VALUE)
-    {
-        wchar_t cannotOpenFileMsg[CANNOT_OPEN_FILE_ERROR_MSG_LENGTH];
-        Format(
-            cannotOpenFileMsg,
-            CANNOT_OPEN_FILE_ERROR_MSG_LENGTH,
-            CANNOT_OPEN_FILE_ERROR_MSG,
-            filePathToSend,
-            GetLastError());
-
-        MessageBoxW(MAIN_WINDOW, cannotOpenFileMsg, CANNOT_OPEN_FILE_ERROR_TITLE, MB_ICONERROR | MB_OK);
-
-        return;
-    }
-
-    LARGE_INTEGER fileSize;
-    fileSize.HighPart = 0;
-    fileSize.LowPart = (LONG)GetFileSize(hFileToSend, (DWORD *)&fileSize.HighPart);
-    if (fileSize.LowPart == INVALID_FILE_SIZE)
-    {
-        wchar_t cannotGetFileSizeMsg[CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH];
-        Format(
-            cannotGetFileSizeMsg,
-            CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH,
-            CANNOT_GET_FILE_SIZE_ERROR_MSG,
-            filePathToSend,
-            GetLastError());
-
-        MessageBoxW(MAIN_WINDOW, cannotGetFileSizeMsg, CANNOT_GET_FILE_SIZE_ERROR_TITLE, MB_ICONERROR | MB_OK);
-
-        CloseHandle(hFileToSend);
-
-        return;
-    }
-
-    wchar_t *fileName = GetFileName(filePathToSend);
-    size_t fileNameSize = (wcslen(fileName) + 1) * sizeof(wchar_t);
-
-    HANDLE hComPort;
-    if (!OpenSelectedPort(&hComPort))
-    {
-        CloseHandle(hFileToSend);
-
-        return;
-    }
-
-    uint64_t sendBuffer[3];
-    DWORD bytesWritten;
-    sendBuffer[0] = SFTT_SERIAL_START_SIGNATURE;
-    sendBuffer[1] = (uint64_t)fileSize.QuadPart;
-    sendBuffer[2] = (uint64_t)fileNameSize;
-    WriteFile(hComPort, sendBuffer, 24, &bytesWritten, NULL);
-
-    WriteFile(hComPort, fileName, fileNameSize, &bytesWritten, NULL);
-
-    BYTE binBuffer[4096];
-    DWORD bytesRead;
-    while (ReadFile(hFileToSend, binBuffer, sizeof(binBuffer), &bytesRead, NULL) && bytesRead > 0)
-    {
-        WriteFile(hComPort, binBuffer, bytesRead, &bytesWritten, NULL);
-    }
-
-    sendBuffer[0] = SFTT_SERIAL_FINAL_SIGNATURE;
-    WriteFile(hComPort, sendBuffer, 8, &bytesWritten, NULL);
-
-    CloseHandle(hComPort);
-    CloseHandle(hFileToSend);
-}
-
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (wMsg)
     {
-        case WM_SFTT_TEST: {
+        /*case WM_SFTT_TEST: {
             wchar_t msg[1000];
             Format(
                 msg,
@@ -496,50 +42,19 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
             free(RECEIVING_FILE_NAME);
 
             return 0;
-        }
+            }*/
         case WM_DESTROY: {
             PostQuitMessage(0);
 
             return 0;
         }
         case WM_PAINT: {
-            HDC hdc;
-            PAINTSTRUCT ps;
-
-            hdc = BeginPaint(hwnd, &ps);
-
-            HFONT oldFont = (HFONT)SelectObject(hdc, UI_FONT);
-
-            TextOutW(
-                hdc,
-                PORT_SELECT_LABEL_X,
-                PORT_SELECT_LABEL_Y,
-                PORT_SELECT_LABEL_TEXT,
-                PORT_SELECT_LABEL_TEXT_LENGTH);
-
-            if (CURRENT_APPLICATION_MODE == APPLICATION_MODE_SEND_MODE)
-            {
-                TextOutW(
-                    hdc,
-                    FILE_TO_SEND_LABEL_X,
-                    FILE_TO_SEND_LABEL_Y,
-                    FILE_TO_SEND_LABEL_TEXT,
-                    FILE_TO_SEND_LABEL_TEXT_LENGTH);
-            }
-
-            SelectObject(hdc, oldFont);
-
-            EndPaint(hwnd, &ps);
+            PaintMainWindow();
 
             return 0;
         }
         case WM_ERASEBKGND: {
-            HDC hdc = (HDC)wParam;
-            RECT rect;
-            GetClientRect(hwnd, &rect);
-
-            HBRUSH bkgndBrush = GetSysColorBrush(COLOR_WINDOW);
-            FillRect(hdc, &rect, bkgndBrush);
+            EraseWindowBackground(hwnd, (HDC)wParam);
 
             return 1;
         }
@@ -547,7 +62,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
             switch (LOWORD(wParam))
             {
                 case PORT_SELECT_UPDATE_BUTTON_ID: {
-                    UpdatePortList();
+                    UpdatePortSelectList();
 
                     return 0;
                 }
@@ -562,13 +77,21 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     return 0;
                 }
                 case START_RECEIVING_BUTTON_ID: {
-                    if (IS_RECEIVING)
+                    if (IsReceiving())
                     {
                         StopReceiving();
                     }
                     else
                     {
-                        StartReceiving();
+                        wchar_t *selectedPortName;
+                        if (!GetSelectedPortName(&selectedPortName))
+                        {
+                            // TODO ERROR
+
+                            return 0;
+                        }
+
+                        StartReceiving(selectedPortName);
                     }
 
                     return 0;
@@ -576,39 +99,30 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                 case SEND_FILE_PATH_BROWSE_BUTTON_ID: {
                     wchar_t filePath[MAX_PATH_LENGTH] = L"";
 
-                    OPENFILENAMEW ofn;
-                    ZeroMemory(&ofn, sizeof(ofn));
-                    ofn.lStructSize = sizeof(ofn);
-                    ofn.hwndOwner = MAIN_WINDOW;
-                    ofn.lpstrFile = filePath;
-                    ofn.nMaxFile = MAX_PATH_LENGTH;
-                    ofn.lpstrFilter = L"All Files\0*.*\0";
-                    ofn.nFilterIndex = 1;
-                    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_EXPLORER;
-
-                    if (GetOpenFileNameW(&ofn))
+                    if (BrowseFileToSend(filePath))
                     {
-                        SetWindowTextW(SEND_FILE_PATH_TEXTBOX, filePath);
+                        UpdateSendFilePathTextbox(filePath);
                     }
 
                     return 0;
                 }
                 case SEND_FILE_BUTTON_ID: {
-                    EnableWindow(PORT_SELECT_COMBO_BOX, FALSE);
-                    EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
-                    EnableWindow(MODE_CHANGE_BUTTON_RECEIVE_MODE, FALSE);
-                    EnableWindow(SEND_FILE_PATH_TEXTBOX, FALSE);
-                    EnableWindow(SEND_FILE_PATH_BROWSE_BUTTON, FALSE);
-                    EnableWindow(SEND_FILE_BUTTON, FALSE);
+                    EnableSetModeControls(FALSE);
 
-                    SendFile();
+                    wchar_t *selectedPortName;
+                    if (!GetSelectedPortName(&selectedPortName))
+                    {
+                        // TODO ERROR
 
-                    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
-                    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
-                    EnableWindow(MODE_CHANGE_BUTTON_RECEIVE_MODE, TRUE);
-                    EnableWindow(SEND_FILE_PATH_TEXTBOX, TRUE);
-                    EnableWindow(SEND_FILE_PATH_BROWSE_BUTTON, TRUE);
-                    EnableWindow(SEND_FILE_BUTTON, TRUE);
+                        return 0;
+                    }
+
+                    wchar_t filePath[MAX_PATH_LENGTH];
+                    GetSendFilePath(filePath);
+
+                    SendFile(selectedPortName, filePath);
+
+                    EnableSetModeControls(TRUE);
 
                     return 0;
                 }
@@ -625,178 +139,10 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
 int main(void)
 {
-    HINSTANCE mainInstance = GetModuleHandleW(NULL);
+    InitialiseSerial();
+    InitialiseUI(MainWindowWndProc);
 
-    ZeroMemory(&DEFAULT_DCB, sizeof(DEFAULT_DCB));
-    DEFAULT_DCB.fBinary = TRUE;
-    DEFAULT_DCB.fOutX = FALSE;
-    DEFAULT_DCB.fInX = FALSE;
-    DEFAULT_DCB.fNull = FALSE;
-
-    WNDCLASSEXW mainWindowClass;
-    ZeroMemory(&mainWindowClass, sizeof(mainWindowClass));
-    mainWindowClass.cbSize = sizeof(mainWindowClass);
-    mainWindowClass.lpszClassName = MAIN_WINDOW_CLASS_NAME;
-    mainWindowClass.hInstance = mainInstance;
-    mainWindowClass.style = CS_VREDRAW | CS_HREDRAW;
-    mainWindowClass.lpfnWndProc = MainWindowWndProc;
-
-    RegisterClassExW(&mainWindowClass);
-
-    UI_FONT = CreateFontW(
-        UI_FONT_SIZE,
-        0,
-        0,
-        0,
-        FW_NORMAL,
-        FALSE,
-        FALSE,
-        FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        5, // CLEARTYPE_QUALITY
-        DEFAULT_PITCH | FF_DONTCARE,
-        UI_FONT_NAME);
-
-    MAIN_WINDOW = CreateWindowW(
-        MAIN_WINDOW_CLASS_NAME,
-        NULL,
-        WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        MAIN_WINDOW_WIDTH,
-        0,
-        NULL,
-        NULL,
-        mainInstance,
-        NULL);
-
-    PORT_SELECT_COMBO_BOX = CreateWindowW(
-        L"COMBOBOX",
-        NULL,
-        CBS_DROPDOWNLIST | WS_CHILD | WS_VSCROLL | WS_VISIBLE,
-        PORT_SELECT_COMBOBOX_X,
-        PORT_SELECT_COMBOBOX_Y,
-        PORT_SELECT_COMBOBOX_WIDTH,
-        PORT_SELECT_COMBOBOX_HEIGHT,
-        MAIN_WINDOW,
-        (HMENU)PORT_SELECT_COMBOBOX_ID,
-        mainInstance,
-        NULL);
-
-    SendMessageW(PORT_SELECT_COMBO_BOX, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
-
-    PORT_SELECT_UPDATE_BUTTON = CreateWindowW(
-        L"BUTTON",
-        PORT_SELECT_UPDATE_BUTTON_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        PORT_SELECT_UPDATE_BUTTON_X,
-        PORT_SELECT_UPDATE_BUTTON_Y,
-        PORT_SELECT_UPDATE_BUTTON_WIDTH,
-        PORT_SELECT_UPDATE_BUTTON_HEIGHT,
-        MAIN_WINDOW,
-        (HMENU)PORT_SELECT_UPDATE_BUTTON_ID,
-        mainInstance,
-        NULL);
-
-    SendMessageW(PORT_SELECT_UPDATE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
-
-    MODE_CHANGE_BUTTON_SEND_MODE = CreateWindowW(
-        L"BUTTON",
-        MODE_CHANGE_BUTTON_SEND_MODE_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        MODE_CHANGE_BUTTON_SEND_MODE_X,
-        MODE_CHANGE_BUTTON_SEND_MODE_Y,
-        MODE_CHANGE_BUTTON_SEND_MODE_WIDTH,
-        MODE_CHANGE_BUTTON_SEND_MODE_HEIGHT,
-        MAIN_WINDOW,
-        (HMENU)MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID,
-        mainInstance,
-        NULL);
-
-    SendMessageW(MODE_CHANGE_BUTTON_SEND_MODE, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
-
-    MODE_CHANGE_BUTTON_RECEIVE_MODE = CreateWindowW(
-        L"BUTTON",
-        MODE_CHANGE_BUTTON_RECEIVE_MODE_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        MODE_CHANGE_BUTTON_RECEIVE_MODE_X,
-        MODE_CHANGE_BUTTON_RECEIVE_MODE_Y,
-        MODE_CHANGE_BUTTON_RECEIVE_MODE_WIDTH,
-        MODE_CHANGE_BUTTON_RECEIVE_MODE_HEIGHT,
-        MAIN_WINDOW,
-        (HMENU)MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID,
-        mainInstance,
-        NULL);
-
-    SendMessageW(MODE_CHANGE_BUTTON_RECEIVE_MODE, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
-
-    START_RECEIVING_BUTTON = CreateWindowW(
-        L"BUTTON",
-        START_RECEIVING_BUTTON_LABEL_START,
-        WS_CHILD | WS_VISIBLE,
-        START_RECEIVING_BUTTON_X,
-        START_RECEIVING_BUTTON_Y,
-        START_RECEIVING_BUTTON_WIDTH,
-        START_RECEIVING_BUTTON_HEIGHT,
-        MAIN_WINDOW,
-        (HMENU)START_RECEIVING_BUTTON_ID,
-        mainInstance,
-        NULL);
-
-    SendMessageW(START_RECEIVING_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
-
-    SEND_FILE_PATH_TEXTBOX = CreateWindowW(
-        L"EDIT",
-        NULL,
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        SEND_FILE_PATH_TEXTBOX_X,
-        SEND_FILE_PATH_TEXTBOX_Y,
-        SEND_FILE_PATH_TEXTBOX_WIDTH,
-        SEND_FILE_PATH_TEXTBOX_HEIGHT,
-        MAIN_WINDOW,
-        NULL,
-        mainInstance,
-        NULL);
-
-    SendMessageW(SEND_FILE_PATH_TEXTBOX, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
-
-    SEND_FILE_PATH_BROWSE_BUTTON = CreateWindowW(
-        L"BUTTON",
-        SEND_FILE_PATH_BROWSE_BUTTON_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        SEND_FILE_PATH_BROWSE_BUTTON_X,
-        SEND_FILE_PATH_BROWSE_BUTTON_Y,
-        SEND_FILE_PATH_BROWSE_BUTTON_WIDTH,
-        SEND_FILE_PATH_BROWSE_BUTTON_HEIGHT,
-        MAIN_WINDOW,
-        (HMENU)SEND_FILE_PATH_BROWSE_BUTTON_ID,
-        mainInstance,
-        NULL);
-
-    SendMessageW(SEND_FILE_PATH_BROWSE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
-
-    SEND_FILE_BUTTON = CreateWindowW(
-        L"BUTTON",
-        SEND_FILE_BUTTON_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        SEND_FILE_BUTTON_X,
-        SEND_FILE_BUTTON_Y,
-        SEND_FILE_BUTTON_WIDTH,
-        SEND_FILE_BUTTON_HEIGHT,
-        MAIN_WINDOW,
-        (HMENU)SEND_FILE_BUTTON_ID,
-        mainInstance,
-        NULL);
-
-    SendMessageW(SEND_FILE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
-
-    UpdatePortList();
-    SetApplicationMode(APPLICATION_MODE_SEND_MODE);
-
-    ShowWindow(MAIN_WINDOW, SW_SHOWNORMAL);
-    UpdateWindow(MAIN_WINDOW);
+    ShowMainWindow();
 
     MSG msg;
     BOOL bRet;
@@ -811,17 +157,8 @@ int main(void)
         DispatchMessageW(&msg);
     }
 
-    FreePortListItemDataPointers();
-
-    if (IS_RECEIVING)
-    {
-        StopReceiving();
-    }
-
-    if (UI_FONT != NULL)
-    {
-        DeleteObject(UI_FONT);
-    }
+    FinaliseSerial();
+    FinaliseUI();
 
     return 0;
 }
