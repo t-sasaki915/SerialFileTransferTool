@@ -1,8 +1,8 @@
 CC = gcc
 STRIP = strip
 
-# The '-Wpedantic' option may be removed in older environments such as Windows 2000.
-CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -mwindows -Os -fno-ident
+# The '-Wpedantic' option may have to be removed in older environments such as Windows 2000.
+CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -mwindows -Os
 LDFLAGS = -static -static-libgcc -lgdi32 -lcomdlg32
 
 BIN_NAME = SerialFileTransferTool.exe
