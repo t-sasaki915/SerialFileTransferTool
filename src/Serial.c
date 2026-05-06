@@ -34,24 +34,37 @@ wchar_t *g_sendingFileName;
 size_t g_sendingFileSize;
 size_t g_sendingFileNameSize;
 
-DCB DEFAULT_DCB;
+DCB g_defaultDCB;
 
 PCANCELIOEX CANCEL_IO_EX_FUNC;
 BOOL CANCEL_IO_EX_FUNC_IS_SET = FALSE;
 
 void InitialiseSerial(void)
 {
-    ZeroMemory(&DEFAULT_DCB, sizeof(DEFAULT_DCB));
-    DEFAULT_DCB.BaudRate = CBR_9600;
-    DEFAULT_DCB.ByteSize = 8;
-    DEFAULT_DCB.Parity = NOPARITY;
-    DEFAULT_DCB.StopBits = ONESTOPBIT;
-    DEFAULT_DCB.fBinary = TRUE;
-    DEFAULT_DCB.fOutX = FALSE;
-    DEFAULT_DCB.fInX = FALSE;
-    DEFAULT_DCB.fNull = FALSE;
-    DEFAULT_DCB.fOutxCtsFlow = FALSE;
-    DEFAULT_DCB.fRtsControl = RTS_CONTROL_ENABLE;
+    ZeroMemory(&g_defaultDCB, sizeof(g_defaultDCB));
+    g_defaultDCB.BaudRate = CBR_9600;
+    g_defaultDCB.ByteSize = 8;
+    g_defaultDCB.Parity = NOPARITY;
+    g_defaultDCB.StopBits = ONESTOPBIT;
+    g_defaultDCB.fBinary = TRUE;
+    g_defaultDCB.fOutX = FALSE;
+    g_defaultDCB.fInX = FALSE;
+    g_defaultDCB.fNull = FALSE;
+    g_defaultDCB.fOutxCtsFlow = FALSE;
+    g_defaultDCB.fRtsControl = RTS_CONTROL_ENABLE;
+
+    union {
+        FARPROC addr;
+        PCANCELIOEX func;
+    } converter;
+
+    HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
+    converter.addr = GetProcAddress(kernel32, "CancelIoEx");
+
+    if (converter.func != NULL)
+    {
+        CANCEL_IO_EX_FUNC = converter.func;
+    }
 }
 
 BOOL IsReceiving(void)
@@ -67,7 +80,7 @@ BOOL OpenCOMPort(LPCWSTR portName, HANDLE *resultPtr)
         return FALSE;
     }
 
-    if (!SetCommState(hComPort, &DEFAULT_DCB))
+    if (!SetCommState(hComPort, &g_defaultDCB))
     {
         return FALSE;
     }
@@ -105,21 +118,6 @@ void GetAvailablePorts(AvailablePort *availablePorts, int *numberOfAvailablePort
 
 void StopReceiverThread(void)
 {
-    if (!CANCEL_IO_EX_FUNC_IS_SET)
-    {
-        union {
-            FARPROC addr;
-            PCANCELIOEX func;
-        } converter;
-
-        HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
-        converter.addr = GetProcAddress(kernel32, "CancelIoEx");
-
-        CANCEL_IO_EX_FUNC = converter.func;
-
-        CANCEL_IO_EX_FUNC_IS_SET = TRUE;
-    }
-
     if (CANCEL_IO_EX_FUNC != NULL)
     {
         CANCEL_IO_EX_FUNC(g_receivingCOMPortHandle, NULL);
