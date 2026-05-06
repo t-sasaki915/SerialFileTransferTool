@@ -3,8 +3,6 @@
 
 #include <windows.h>
 
-#define MAX_PATH_LENGTH 260
-
 void InitialiseUtilFunctions(void);
 
 wchar_t *GetFileName(wchar_t *filePath);

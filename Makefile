@@ -3,7 +3,7 @@ STRIP = strip
 
 # The '-Wpedantic' option may have to be removed in older environments such as Windows 2000.
 CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -mwindows -Os
-LDFLAGS = -static -static-libgcc -lcomctl32 -lgdi32 -lcomdlg32
+LDFLAGS = -static -static-libgcc -lcomctl32 -lgdi32 -lcomdlg32 -lole32
 
 BIN_NAME = SerialFileTransferTool.exe
 

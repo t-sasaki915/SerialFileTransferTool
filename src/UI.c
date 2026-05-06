@@ -1,5 +1,6 @@
 #define _WIN32_WINNT 0x0500
 
+#include <shlobj.h>
 #include <stdint.h>
 #include <windows.h>
 
@@ -22,7 +23,7 @@
 #define MAIN_WINDOW_TITLE_RECEIVE_MODE L"SFTT - Receive"
 #define MAIN_WINDOW_WIDTH 274
 #define MAIN_WINDOW_HEIGHT_SEND_MODE 197
-#define MAIN_WINDOW_HEIGHT_RECEIVE_MODE 170
+#define MAIN_WINDOW_HEIGHT_RECEIVE_MODE 197
 
 #define PORT_SELECT_LABEL_TEXT L"Port: "
 #define PORT_SELECT_LABEL_TEXT_LENGTH 6
@@ -33,7 +34,6 @@
 #define PORT_SELECT_COMBOBOX_Y 4
 #define PORT_SELECT_COMBOBOX_WIDTH 150
 #define PORT_SELECT_COMBOBOX_HEIGHT 200
-#define PORT_SELECT_COMBOBOX_ID 1000
 
 #define PORT_SELECT_UPDATE_BUTTON_LABEL L"Update"
 #define PORT_SELECT_UPDATE_BUTTON_X 190
@@ -56,13 +56,31 @@
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_HEIGHT 40
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID 102
 
+#define RECEIVE_DIRECTORY_LABEL_TEXT L"Dir: "
+#define RECEIVE_DIRECTORY_LABEL_TEXT_LENGTH 5
+#define RECEIVE_DIRECTORY_LABEL_X 10
+#define RECEIVE_DIRECTORY_LABEL_Y 79
+
+#define RECEIVE_DIRECTORY_TEXTBOX_X 35
+#define RECEIVE_DIRECTORY_TEXTBOX_Y 76
+#define RECEIVE_DIRECTORY_TEXTBOX_WIDTH 148
+#define RECEIVE_DIRECTORY_TEXTBOX_HEIGHT 20
+
+#define RECEIVE_DIRECTORY_BROWSE_BUTTON_LABEL L"Browse"
+#define RECEIVE_DIRECTORY_BROWSE_BUTTON_X 190
+#define RECEIVE_DIRECTORY_BROWSE_BUTTON_Y 76
+#define RECEIVE_DIRECTORY_BROWSE_BUTTON_WIDTH 70
+#define RECEIVE_DIRECTORY_BROWSE_BUTTON_HEIGHT 20
+#define RECEIVE_DIRECTORY_BROWSE_BUTTON_ID 103
+#define RECEIVE_DIRECTORY_BROWSE_DIALOG_TITLE L"Please select the directory for which received data will be stored"
+
 #define START_RECEIVING_BUTTON_LABEL_START L"Start Receiving"
 #define START_RECEIVING_BUTTON_LABEL_STOP L"Stop Receiving"
 #define START_RECEIVING_BUTTON_X 7
-#define START_RECEIVING_BUTTON_Y 76
+#define START_RECEIVING_BUTTON_Y 103
 #define START_RECEIVING_BUTTON_WIDTH 253
 #define START_RECEIVING_BUTTON_HEIGHT 40
-#define START_RECEIVING_BUTTON_ID 103
+#define START_RECEIVING_BUTTON_ID 104
 
 #define FILE_TO_SEND_LABEL_TEXT L"File: "
 #define FILE_TO_SEND_LABEL_TEXT_LENGTH 6
@@ -79,14 +97,14 @@
 #define SEND_FILE_PATH_BROWSE_BUTTON_Y 76
 #define SEND_FILE_PATH_BROWSE_BUTTON_WIDTH 70
 #define SEND_FILE_PATH_BROWSE_BUTTON_HEIGHT 20
-#define SEND_FILE_PATH_BROWSE_BUTTON_ID 104
+#define SEND_FILE_PATH_BROWSE_BUTTON_ID 105
 
 #define SEND_FILE_BUTTON_LABEL L"Send a File"
 #define SEND_FILE_BUTTON_X 7
 #define SEND_FILE_BUTTON_Y 103
 #define SEND_FILE_BUTTON_WIDTH 253
 #define SEND_FILE_BUTTON_HEIGHT 40
-#define SEND_FILE_BUTTON_ID 105
+#define SEND_FILE_BUTTON_ID 106
 
 #define STATUS_BAR_TEXT_READY L"Ready"
 #define STATUS_BAR_TEXT_SENDING L"Sending"
@@ -104,6 +122,8 @@ HWND g_portSelectUpdateButton;
 HWND g_modeChangeButtonSendMode;
 HWND g_modeChangeButtonReceiveMode;
 HWND g_startReceivingButton;
+HWND g_receiveDirectoryTextBox;
+HWND g_receiveDirectoryBrowseButton;
 HWND g_sendFilePathTextBox;
 HWND g_sendFilePathBrowseButton;
 HWND g_sendFileButton;
@@ -211,13 +231,15 @@ void SetApplicationMode(ApplicationMode appMode)
 
     int receiveModeComponentShowMode = (appMode == APPLICATION_MODE_RECEIVE_MODE) ? SW_SHOW : SW_HIDE;
     ShowWindow(g_startReceivingButton, receiveModeComponentShowMode);
+    ShowWindow(g_receiveDirectoryTextBox, receiveModeComponentShowMode);
+    ShowWindow(g_receiveDirectoryBrowseButton, receiveModeComponentShowMode);
 
     int sendModeComponentShowMode = (appMode == APPLICATION_MODE_SEND_MODE) ? SW_SHOW : SW_HIDE;
     ShowWindow(g_sendFilePathTextBox, sendModeComponentShowMode);
     ShowWindow(g_sendFilePathBrowseButton, sendModeComponentShowMode);
     ShowWindow(g_sendFileButton, sendModeComponentShowMode);
 
-    InvalidateRect(g_mainWindow, NULL, FALSE);
+    InvalidateRect(g_mainWindow, NULL, TRUE);
 }
 
 BOOL GetSelectedPortName(wchar_t **resultPtr)
@@ -241,12 +263,37 @@ BOOL BrowseFileToSend(wchar_t *resultPtr)
     ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = g_mainWindow;
     ofn.lpstrFile = resultPtr;
-    ofn.nMaxFile = MAX_PATH_LENGTH;
+    ofn.nMaxFile = MAX_PATH;
     ofn.lpstrFilter = L"All Files\0*.*\0";
     ofn.nFilterIndex = 1;
     ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_EXPLORER;
 
     return GetOpenFileNameW(&ofn);
+}
+
+BOOL BrowseReceiveDirectory(wchar_t *resultPtr)
+{
+    BROWSEINFOW bi;
+    ZeroMemory(&bi, sizeof(bi));
+    bi.hwndOwner = g_mainWindow;
+    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    bi.lpszTitle = RECEIVE_DIRECTORY_BROWSE_DIALOG_TITLE;
+
+    PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
+
+    if (pidl != NULL)
+    {
+        if (SHGetPathFromIDListW(pidl, resultPtr))
+        {
+            CoTaskMemFree((LPVOID)pidl);
+
+            return TRUE;
+        }
+
+        CoTaskMemFree((LPVOID)pidl);
+    }
+
+    return FALSE;
 }
 
 void UpdateSendFilePathTextbox(wchar_t *filePath)
@@ -256,7 +303,17 @@ void UpdateSendFilePathTextbox(wchar_t *filePath)
 
 void GetSendFilePath(wchar_t *resultPtr)
 {
-    GetWindowTextW(g_sendFilePathTextBox, resultPtr, MAX_PATH_LENGTH);
+    GetWindowTextW(g_sendFilePathTextBox, resultPtr, MAX_PATH);
+}
+
+void UpdateReceiveDirectoryTextbox(wchar_t *dirPath)
+{
+    SetWindowTextW(g_receiveDirectoryTextBox, dirPath);
+}
+
+void GetReceiveDirectory(wchar_t *resultPtr)
+{
+    GetWindowTextW(g_receiveDirectoryTextBox, resultPtr, MAX_PATH);
 }
 
 void EnableSetModeControls(BOOL enable)
@@ -282,6 +339,8 @@ void UIStopReceiving(void)
     EnableWindow(g_portSelectComboBox, TRUE);
     EnableWindow(g_portSelectUpdateButton, TRUE);
     EnableWindow(g_modeChangeButtonSendMode, TRUE);
+    EnableWindow(g_receiveDirectoryBrowseButton, TRUE);
+    EnableWindow(g_receiveDirectoryTextBox, TRUE);
 }
 
 void UIStartReceiving(void)
@@ -291,6 +350,8 @@ void UIStartReceiving(void)
     EnableWindow(g_portSelectComboBox, FALSE);
     EnableWindow(g_portSelectUpdateButton, FALSE);
     EnableWindow(g_modeChangeButtonSendMode, FALSE);
+    EnableWindow(g_receiveDirectoryBrowseButton, FALSE);
+    EnableWindow(g_receiveDirectoryTextBox, FALSE);
 }
 
 void SetStatusBarText(StatusBarStatus status)
@@ -392,14 +453,28 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                 PORT_SELECT_LABEL_TEXT,
                 PORT_SELECT_LABEL_TEXT_LENGTH);
 
-            if (g_currentApplicationMode == APPLICATION_MODE_SEND_MODE)
+            switch (g_currentApplicationMode)
             {
-                TextOutW(
-                    hdc,
-                    FILE_TO_SEND_LABEL_X,
-                    FILE_TO_SEND_LABEL_Y,
-                    FILE_TO_SEND_LABEL_TEXT,
-                    FILE_TO_SEND_LABEL_TEXT_LENGTH);
+                case APPLICATION_MODE_SEND_MODE: {
+                    TextOutW(
+                        hdc,
+                        FILE_TO_SEND_LABEL_X,
+                        FILE_TO_SEND_LABEL_Y,
+                        FILE_TO_SEND_LABEL_TEXT,
+                        FILE_TO_SEND_LABEL_TEXT_LENGTH);
+
+                    break;
+                }
+                case APPLICATION_MODE_RECEIVE_MODE: {
+                    TextOutW(
+                        hdc,
+                        RECEIVE_DIRECTORY_LABEL_X,
+                        RECEIVE_DIRECTORY_LABEL_Y,
+                        RECEIVE_DIRECTORY_LABEL_TEXT,
+                        RECEIVE_DIRECTORY_LABEL_TEXT_LENGTH);
+
+                    break;
+                }
             }
 
             SelectObject(hdc, oldFont);
@@ -475,11 +550,21 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     return 0;
                 }
                 case SEND_FILE_PATH_BROWSE_BUTTON_ID: {
-                    wchar_t filePath[MAX_PATH_LENGTH] = L"";
+                    wchar_t filePath[MAX_PATH] = L"";
 
                     if (BrowseFileToSend(filePath))
                     {
                         UpdateSendFilePathTextbox(filePath);
+                    }
+
+                    return 0;
+                }
+                case RECEIVE_DIRECTORY_BROWSE_BUTTON_ID: {
+                    wchar_t dirPath[MAX_PATH] = L"";
+
+                    if (BrowseReceiveDirectory(dirPath))
+                    {
+                        UpdateReceiveDirectoryTextbox(dirPath);
                     }
 
                     return 0;
@@ -493,7 +578,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                         return 0;
                     }
 
-                    wchar_t filePath[MAX_PATH_LENGTH];
+                    wchar_t filePath[MAX_PATH];
                     GetSendFilePath(filePath);
                     if (wcslen(filePath) == 0)
                     {
@@ -551,7 +636,7 @@ void ShowMainWindow(void)
         PORT_SELECT_COMBOBOX_WIDTH,
         PORT_SELECT_COMBOBOX_HEIGHT,
         g_mainWindow,
-        (HMENU)PORT_SELECT_COMBOBOX_ID,
+        NULL,
         g_mainInstance,
         NULL);
 
@@ -616,6 +701,40 @@ void ShowMainWindow(void)
         NULL);
 
     SendMessageW(g_startReceivingButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
+
+    g_receiveDirectoryTextBox = CreateWindowW(
+        L"EDIT",
+        NULL,
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+        RECEIVE_DIRECTORY_TEXTBOX_X,
+        RECEIVE_DIRECTORY_TEXTBOX_Y,
+        RECEIVE_DIRECTORY_TEXTBOX_WIDTH,
+        RECEIVE_DIRECTORY_TEXTBOX_HEIGHT,
+        g_mainWindow,
+        NULL,
+        g_mainInstance,
+        NULL);
+
+    SendMessageW(g_receiveDirectoryTextBox, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
+
+    wchar_t currentDir[MAX_PATH];
+    GetCurrentDirectoryW(MAX_PATH, currentDir);
+    SetWindowTextW(g_receiveDirectoryTextBox, currentDir);
+
+    g_receiveDirectoryBrowseButton = CreateWindowW(
+        L"BUTTON",
+        RECEIVE_DIRECTORY_BROWSE_BUTTON_LABEL,
+        WS_CHILD | WS_VISIBLE,
+        RECEIVE_DIRECTORY_BROWSE_BUTTON_X,
+        RECEIVE_DIRECTORY_BROWSE_BUTTON_Y,
+        RECEIVE_DIRECTORY_BROWSE_BUTTON_WIDTH,
+        RECEIVE_DIRECTORY_BROWSE_BUTTON_HEIGHT,
+        g_mainWindow,
+        (HMENU)RECEIVE_DIRECTORY_BROWSE_BUTTON_ID,
+        g_mainInstance,
+        NULL);
+
+    SendMessageW(g_receiveDirectoryBrowseButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
     g_sendFilePathTextBox = CreateWindowW(
         L"EDIT",
