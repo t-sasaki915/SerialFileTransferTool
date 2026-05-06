@@ -36,8 +36,7 @@ size_t g_sendingFileNameSize;
 
 DCB g_defaultDCB;
 
-PCANCELIOEX CANCEL_IO_EX_FUNC;
-BOOL CANCEL_IO_EX_FUNC_IS_SET = FALSE;
+PCANCELIOEX g_cancelIOExFunc;
 
 void InitialiseSerial(void)
 {
@@ -63,7 +62,7 @@ void InitialiseSerial(void)
 
     if (converter.func != NULL)
     {
-        CANCEL_IO_EX_FUNC = converter.func;
+        g_cancelIOExFunc = converter.func;
     }
 }
 
@@ -118,9 +117,9 @@ void GetAvailablePorts(AvailablePort *availablePorts, int *numberOfAvailablePort
 
 void StopReceiverThread(void)
 {
-    if (CANCEL_IO_EX_FUNC != NULL)
+    if (g_cancelIOExFunc != NULL)
     {
-        CANCEL_IO_EX_FUNC(g_receivingCOMPortHandle, NULL);
+        g_cancelIOExFunc(g_receivingCOMPortHandle, NULL);
     }
     else
     {
