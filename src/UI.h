@@ -70,6 +70,10 @@ void StepProgressBar(void);
 
 void ResetProgressBar(void);
 
+void UIStartSending(void);
+
+void UIFinishSending(void);
+
 void FinaliseUI(void);
 
 #endif

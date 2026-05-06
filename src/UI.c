@@ -10,6 +10,8 @@
 #include "Util.h"
 
 #define WM_SFTT_SHOW_ERROR_DIALOG WM_USER + 1
+#define WM_SFTT_UI_START_SENDING WM_USER + 2
+#define WM_SFTT_UI_FINISH_SENDING WM_USER + 3
 
 #define UI_FONT_NAME L"Tahoma"
 #define UI_FONT_SIZE 15
@@ -333,6 +335,16 @@ void ResetProgressBar(void)
     SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_SETPOS, (WPARAM)0, (LPARAM)0);
 }
 
+void UIStartSending(void)
+{
+    SendMessageW(MAIN_WINDOW, WM_SFTT_UI_START_SENDING, (WPARAM)0, (LPARAM)0);
+}
+
+void UIFinishSending(void)
+{
+    SendMessageW(MAIN_WINDOW, WM_SFTT_UI_FINISH_SENDING, (WPARAM)0, (LPARAM)0);
+}
+
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (wMsg)
@@ -343,6 +355,18 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
             MessageBoxW(MAIN_WINDOW, msg, L"SFTT", MB_ICONERROR | MB_OK);
 
             free(msg);
+
+            return 0;
+        }
+        case WM_SFTT_UI_START_SENDING: {
+            EnableSetModeControls(FALSE);
+            SetStatusBarText(STATUS_BAR_STATUS_SENDING);
+
+            return 0;
+        }
+        case WM_SFTT_UI_FINISH_SENDING: {
+            EnableSetModeControls(TRUE);
+            SetStatusBarText(STATUS_BAR_STATUS_READY);
 
             return 0;
         }
