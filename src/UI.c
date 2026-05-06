@@ -330,6 +330,12 @@ void StepProgressBar(void)
     SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_STEPIT, (WPARAM)0, (LPARAM)0);
 }
 
+void AddStepToProgressBar(uint32_t steps)
+{
+    uint32_t current = (uint32_t)SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_GETPOS, (WPARAM)0, (LPARAM)0);
+    SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_SETPOS, (WPARAM)current + steps, (LPARAM)0);
+}
+
 void ResetProgressBar(void)
 {
     SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_SETPOS, (WPARAM)0, (LPARAM)0);

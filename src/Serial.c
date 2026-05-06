@@ -50,6 +50,8 @@ void InitialiseSerial(void)
     DEFAULT_DCB.fOutX = FALSE;
     DEFAULT_DCB.fInX = FALSE;
     DEFAULT_DCB.fNull = FALSE;
+    DEFAULT_DCB.fOutxCtsFlow = FALSE;
+    DEFAULT_DCB.fRtsControl = RTS_CONTROL_ENABLE;
 }
 
 BOOL IsReceiving(void)
@@ -277,7 +279,8 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 
                             // TODO
                             MessageBoxW(NULL, L"Match", L"", MB_OK);
-                            CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
+
+                            CleanupCOMPort();
                         }
 
                         continue;
@@ -312,6 +315,10 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
 {
     (void)lpParam;
 
+    size_t totalSteps = 3 + SENDING_FILE_SIZE;
+    ResetProgressBar();
+    SetProgressBarRange(totalSteps);
+
     DWORD bytesWritten;
 
     uint64_t sendBuffer[3] = {
@@ -331,6 +338,8 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
         goto CleanUp;
     }
 
+    StepProgressBar();
+
     if (!WriteFile(SENDING_COM_PORT_HANDLE, SENDING_FILE_NAME, SENDING_FILE_NAME_SIZE, &bytesWritten, NULL))
     {
         CannotWriteCOMPortError();
@@ -344,23 +353,50 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
         goto CleanUp;
     }
 
-    /*BYTE binBuffer[4096];
+    StepProgressBar();
+
+    BYTE binBuffer[4096];
+    DWORD bytesWrittenTotal = 0;
     DWORD bytesRead;
     while (ReadFile(SENDING_FILE_HANDLE, binBuffer, sizeof(binBuffer), &bytesRead, NULL) && bytesRead > 0)
     {
-        if (!WriteFile(SENDING_COM_PORT_HANDLE, binBuffer, bytesRead, &bytesWritten, NULL))
+        DWORD bytesWrittenThisTime;
+        DWORD offset = 0;
+        while (offset < bytesRead)
         {
-            CannotWriteCOMPortError();
+            if (!WriteFile(
+                    SENDING_COM_PORT_HANDLE,
+                    binBuffer + offset,
+                    bytesRead - offset,
+                    &bytesWrittenThisTime,
+                    NULL))
+            {
+                CannotWriteCOMPortError();
 
-            goto CleanUp;
-        }
-        if (bytesWritten != bytesRead)
-        {
-            BytesWrittenMismatchError(bytesRead, bytesWritten);
+                goto CleanUp;
+            }
 
-            goto CleanUp;
+            if (bytesWrittenThisTime == 0)
+            {
+                Sleep(1);
+
+                continue;
+            }
+
+            AddStepToProgressBar(bytesWrittenThisTime);
+
+            offset += bytesWrittenThisTime;
         }
-    }*/
+
+        bytesWrittenTotal += offset;
+    }
+
+    if (bytesWrittenTotal != SENDING_FILE_SIZE)
+    {
+        BytesWrittenMismatchError(SENDING_FILE_SIZE, bytesWrittenTotal);
+
+        goto CleanUp;
+    }
 
     uint64_t sendBuffer2[1] = {SFTT_SERIAL_FINAL_SIGNATURE};
     if (!WriteFile(SENDING_COM_PORT_HANDLE, sendBuffer2, sizeof(uint64_t), &bytesWritten, NULL))
@@ -376,18 +412,23 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
         goto CleanUp;
     }
 
+    StepProgressBar();
+
 CleanUp:
     if (SENDING_COM_PORT_HANDLE != INVALID_HANDLE_VALUE)
     {
         CloseHandle(SENDING_COM_PORT_HANDLE);
+        SENDING_COM_PORT_HANDLE = INVALID_HANDLE_VALUE;
     }
     if (SENDING_FILE_HANDLE != INVALID_HANDLE_VALUE)
     {
         CloseHandle(SENDING_FILE_HANDLE);
+        SENDING_FILE_HANDLE = INVALID_HANDLE_VALUE;
     }
     if (SENDING_FILE_NAME != NULL)
     {
         free(SENDING_FILE_NAME);
+        SENDING_FILE_NAME = NULL;
     }
 
     UIFinishSending();
