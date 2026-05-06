@@ -20,6 +20,7 @@ typedef enum
 typedef BOOL(WINAPI *PCANCELIOEX)(HANDLE, LPOVERLAPPED);
 
 ReceiveStage g_currentReceiveStage;
+wchar_t *g_receiveDirectory;
 uint64_t g_receivingFileSize;
 uint64_t g_receivingFileNameSize;
 wchar_t *g_receivingFileName;
@@ -146,6 +147,18 @@ void StopReceiving(void)
         CloseHandle(g_receivingCOMPortHandle);
         g_receivingCOMPortHandle = INVALID_HANDLE_VALUE;
     }
+
+    if (g_receiveDirectory != NULL)
+    {
+        free(g_receiveDirectory);
+        g_receiveDirectory = NULL;
+    }
+
+    if (g_receivingFileName != NULL)
+    {
+        free(g_receivingFileName);
+        g_receivingFileName = NULL;
+    }
 }
 
 void CleanupCOMPort(void)
@@ -238,7 +251,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                                 continue;
                             }
 
-                            g_receivingFileName = readBuffer;
+                            g_receivingFileName = _wcsdup(readBuffer);
 
                             g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE;
                         }
@@ -285,12 +298,14 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
     return 0;
 }
 
-BOOL StartReceiving(LPCWSTR portName)
+BOOL StartReceiving(wchar_t *portName, wchar_t *receiveDir)
 {
     if (!OpenCOMPort(portName, &g_receivingCOMPortHandle))
     {
         return FALSE;
     }
+
+    g_receiveDirectory = _wcsdup(receiveDir);
 
     g_currentReceiveStage = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
 
@@ -489,9 +504,19 @@ void FinaliseSerial(void)
         CloseHandle(g_sendingFileHandle);
     }
 
+    if (g_receiveDirectory != NULL)
+    {
+        free(g_receiveDirectory);
+    }
+
     if (g_sendingFileName != NULL)
     {
         free(g_sendingFileName);
+    }
+
+    if (g_receivingFileName != NULL)
+    {
+        free(g_receivingFileName);
     }
 
     if (g_isReceiving)

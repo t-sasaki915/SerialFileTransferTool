@@ -12,6 +12,8 @@ void PleaseSpecifyPortError(void);
 
 void PleaseSpecifyFilePathError(void);
 
+void PleaseSpecifyDirectoryError(void);
+
 void CannotOpenCOMPortError(wchar_t *portName);
 
 void CannotReadCOMPortError(void);

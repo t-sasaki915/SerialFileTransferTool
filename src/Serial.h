@@ -19,7 +19,7 @@ BOOL IsReceiving(void);
 
 void StopReceiving(void);
 
-BOOL StartReceiving(LPCWSTR portName);
+BOOL StartReceiving(wchar_t *portName, wchar_t *receiveDir);
 
 void SendFile(wchar_t *portName, wchar_t *filePath);
 

@@ -9,7 +9,6 @@
 #include "Error.h"
 #include "Serial.h"
 #include "UI.h"
-#include "Util.h"
 
 #define WM_SFTT_SHOW_ERROR_DIALOG WM_USER + 1
 #define WM_SFTT_UI_START_SENDING WM_USER + 2
@@ -22,8 +21,7 @@
 #define MAIN_WINDOW_TITLE_SEND_MODE L"SFTT - Send"
 #define MAIN_WINDOW_TITLE_RECEIVE_MODE L"SFTT - Receive"
 #define MAIN_WINDOW_WIDTH 274
-#define MAIN_WINDOW_HEIGHT_SEND_MODE 197
-#define MAIN_WINDOW_HEIGHT_RECEIVE_MODE 197
+#define MAIN_WINDOW_HEIGHT 197
 
 #define PORT_SELECT_LABEL_TEXT L"Port: "
 #define PORT_SELECT_LABEL_TEXT_LENGTH 6
@@ -133,6 +131,7 @@ ApplicationMode g_currentApplicationMode;
 void InitialiseUI(void)
 {
     InitCommonControls();
+    OleInitialize(NULL);
 
     g_mainInstance = GetModuleHandleW(NULL);
 
@@ -199,32 +198,21 @@ void SetApplicationMode(ApplicationMode appMode)
     g_currentApplicationMode = appMode;
 
     LPCWSTR newMainWindowTitle = L"";
-    int newMainWindowHeight = 0;
     switch (appMode)
     {
         case APPLICATION_MODE_SEND_MODE: {
             newMainWindowTitle = MAIN_WINDOW_TITLE_SEND_MODE;
-            newMainWindowHeight = MAIN_WINDOW_HEIGHT_SEND_MODE;
 
             break;
         }
         case APPLICATION_MODE_RECEIVE_MODE: {
             newMainWindowTitle = MAIN_WINDOW_TITLE_RECEIVE_MODE;
-            newMainWindowHeight = MAIN_WINDOW_HEIGHT_RECEIVE_MODE;
 
             break;
         }
     }
 
     SendMessageW(g_mainWindow, WM_SETTEXT, (WPARAM)0, (LPARAM)newMainWindowTitle);
-    SetWindowPos(
-        g_mainWindow,
-        NULL,
-        0,
-        0,
-        MAIN_WINDOW_WIDTH,
-        newMainWindowHeight,
-        SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER);
 
     EnableWindow(g_modeChangeButtonSendMode, (appMode != APPLICATION_MODE_SEND_MODE));
     EnableWindow(g_modeChangeButtonReceiveMode, (appMode != APPLICATION_MODE_RECEIVE_MODE));
@@ -279,7 +267,7 @@ BOOL BrowseReceiveDirectory(wchar_t *resultPtr)
     bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_USENEWUI;
     bi.lpszTitle = RECEIVE_DIRECTORY_BROWSE_DIALOG_TITLE;
 
-    PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
+    LPITEMIDLIST pidl = SHBrowseForFolderW(&bi);
 
     if (pidl != NULL)
     {
@@ -532,7 +520,16 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                             return 0;
                         }
 
-                        if (StartReceiving(selectedPortName))
+                        wchar_t receiveDir[MAX_PATH];
+                        GetReceiveDirectory(receiveDir);
+                        if (wcslen(receiveDir) == 0)
+                        {
+                            PleaseSpecifyDirectoryError();
+
+                            return 0;
+                        }
+
+                        if (StartReceiving(selectedPortName, receiveDir))
                         {
                             UIStartReceiving();
                         }
@@ -621,7 +618,7 @@ void ShowMainWindow(void)
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         MAIN_WINDOW_WIDTH,
-        0,
+        MAIN_WINDOW_HEIGHT,
         NULL,
         NULL,
         g_mainInstance,

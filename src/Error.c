@@ -14,6 +14,8 @@
 
 #define PLEASE_SPECIFY_FILE_PATH_ERROR_MSG L"Please specify a filepath."
 
+#define PLEASE_SPECIFY_DIRECTORY_ERROR_MSG L"Please specify a directory."
+
 #define CANNOT_OPEN_COM_PORT_ERROR_MSG L"Cannot open the COM port '%ls': %lu."
 #define CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH 100
 
@@ -61,6 +63,11 @@ void PleaseSpecifyPortError(void)
 void PleaseSpecifyFilePathError(void)
 {
     RequestErrorDialog(PLEASE_SPECIFY_FILE_PATH_ERROR_MSG);
+}
+
+void PleaseSpecifyDirectoryError(void)
+{
+    RequestErrorDialog(PLEASE_SPECIFY_DIRECTORY_ERROR_MSG);
 }
 
 void CannotOpenCOMPortError(wchar_t *portName)
