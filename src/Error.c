@@ -28,6 +28,9 @@
 #define CANNOT_WRITE_COM_PORT_ERROR_MSG L"Cannot write to COM port: '%lu'."
 #define CANNOT_WRITE_COM_PORT_ERROR_MSG_LENGTH 50
 
+#define CANNOT_WRITE_FILE_ERROR_MSG L"Cannot write to file: '%lu'."
+#define CANNOT_WRITE_FILE_ERROR_MSG_LENGTH 50
+
 #define BYTES_WRITTEN_MISMATCH_ERROR_MSG L"Bytes written mismatch. Expected: %lu, Written: %lu."
 #define BYTES_WRITTEN_MISMATCH_ERROR_MSG_LENGTH 100
 
@@ -98,6 +101,14 @@ void CannotWriteCOMPortError(void)
 {
     wchar_t msg[CANNOT_WRITE_COM_PORT_ERROR_MSG_LENGTH];
     Format(msg, CANNOT_WRITE_COM_PORT_ERROR_MSG_LENGTH, CANNOT_WRITE_COM_PORT_ERROR_MSG, GetLastError());
+
+    RequestErrorDialog(msg);
+}
+
+void CannotWriteFileError(void)
+{
+    wchar_t msg[CANNOT_WRITE_FILE_ERROR_MSG_LENGTH];
+    Format(msg, CANNOT_WRITE_FILE_ERROR_MSG_LENGTH, CANNOT_WRITE_FILE_ERROR_MSG, GetLastError());
 
     RequestErrorDialog(msg);
 }

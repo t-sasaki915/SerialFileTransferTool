@@ -275,10 +275,26 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                 }
                 g_receivingFileName = _wcsdup(readBuffer);
 
-                g_receivedBytesTotal = 0;
+                wchar_t receivingFilePath[MAX_PATH];
+                Format(receivingFilePath, MAX_PATH, L"%ls\\%ls", g_receiveDirectory, g_receivingFileName);
+                g_receivingFileHandle = CreateFileW(
+                    receivingFilePath,
+                    GENERIC_READ | GENERIC_WRITE,
+                    FILE_SHARE_READ,
+                    NULL,
+                    CREATE_ALWAYS,
+                    0,
+                    NULL);
+                if (g_receivingFileHandle == INVALID_HANDLE_VALUE)
+                {
+                    CannotOpenFileError(receivingFilePath);
+
+                    goto CleanUp;
+                }
 
                 StepProgressBar();
 
+                g_receivedBytesTotal = 0;
                 g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_BINARY;
 
                 continue;
@@ -308,6 +324,32 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                         CannotReadCOMPortError();
 
                         goto CleanUp;
+                    }
+
+                    DWORD bytesWritten;
+                    DWORD offset = 0;
+                    while (offset < bytesRead)
+                    {
+                        if (!WriteFile(
+                                g_receivingFileHandle,
+                                binBuffer + offset,
+                                bytesRead - offset,
+                                &bytesWritten,
+                                NULL))
+                        {
+                            CannotWriteFileError();
+
+                            goto CleanUp;
+                        }
+
+                        if (bytesWritten == 0)
+                        {
+                            Sleep(1);
+
+                            continue;
+                        }
+
+                        offset += bytesWritten;
                     }
 
                     g_receivedBytesTotal += bytesRead;
@@ -347,6 +389,12 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                 {
                     free(g_receivingFileName);
                     g_receivingFileName = NULL;
+                }
+
+                if (g_receivingFileHandle != INVALID_HANDLE_VALUE)
+                {
+                    CloseHandle(g_receivingFileHandle);
+                    g_receivingFileHandle = INVALID_HANDLE_VALUE;
                 }
 
                 StepProgressBar();

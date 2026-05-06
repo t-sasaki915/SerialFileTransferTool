@@ -22,6 +22,8 @@ void BytesReadMismatchError(DWORD expected, DWORD read);
 
 void CannotWriteCOMPortError(void);
 
+void CannotWriteFileError(void);
+
 void BytesWrittenMismatchError(DWORD expected, DWORD written);
 
 void SerialStartSignatureMismatchError(uint64_t expected, uint64_t read);
