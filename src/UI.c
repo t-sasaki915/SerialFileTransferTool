@@ -276,7 +276,7 @@ BOOL BrowseReceiveDirectory(wchar_t *resultPtr)
     BROWSEINFOW bi;
     ZeroMemory(&bi, sizeof(bi));
     bi.hwndOwner = g_mainWindow;
-    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_USENEWUI;
     bi.lpszTitle = RECEIVE_DIRECTORY_BROWSE_DIALOG_TITLE;
 
     PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
