@@ -19,13 +19,13 @@ typedef enum
 
 typedef BOOL(WINAPI *PCANCELIOEX)(HANDLE, LPOVERLAPPED);
 
-ReceiveStage CURRENT_RECEIVE_STAGE;
-uint64_t RECEIVING_FILE_SIZE;
-uint64_t RECEIVING_FILE_NAME_SIZE;
-wchar_t *RECEIVING_FILE_NAME;
-HANDLE RECEIVING_COM_PORT_HANDLE;
-HANDLE RECEIVER_THREAD_HANDLE;
-volatile BOOL IS_RECEIVING = FALSE;
+ReceiveStage g_currentReceiveStage;
+uint64_t g_receivingFileSize;
+uint64_t g_receivingFileNameSize;
+wchar_t *g_receivingFileName;
+HANDLE g_receivingCOMPortHandle;
+HANDLE g_receiverThreadHandle;
+volatile BOOL g_isReceiving = FALSE;
 
 HANDLE SENDER_THREAD_HANDLE;
 HANDLE SENDING_COM_PORT_HANDLE;
@@ -56,7 +56,7 @@ void InitialiseSerial(void)
 
 BOOL IsReceiving(void)
 {
-    return IS_RECEIVING;
+    return g_isReceiving;
 }
 
 BOOL OpenCOMPort(LPCWSTR portName, HANDLE *resultPtr)
@@ -122,39 +122,39 @@ void StopReceiverThread(void)
 
     if (CANCEL_IO_EX_FUNC != NULL)
     {
-        CANCEL_IO_EX_FUNC(RECEIVING_COM_PORT_HANDLE, NULL);
+        CANCEL_IO_EX_FUNC(g_receivingCOMPortHandle, NULL);
     }
     else
     {
-        TerminateThread(RECEIVER_THREAD_HANDLE, 0);
+        TerminateThread(g_receiverThreadHandle, 0);
     }
 }
 
 void StopReceiving(void)
 {
-    IS_RECEIVING = FALSE;
+    g_isReceiving = FALSE;
 
-    if (RECEIVER_THREAD_HANDLE != INVALID_HANDLE_VALUE)
+    if (g_receiverThreadHandle != INVALID_HANDLE_VALUE)
     {
         StopReceiverThread();
 
-        WaitForSingleObject(RECEIVER_THREAD_HANDLE, INFINITE);
+        WaitForSingleObject(g_receiverThreadHandle, INFINITE);
 
-        CloseHandle(RECEIVER_THREAD_HANDLE);
-        RECEIVER_THREAD_HANDLE = INVALID_HANDLE_VALUE;
+        CloseHandle(g_receiverThreadHandle);
+        g_receiverThreadHandle = INVALID_HANDLE_VALUE;
     }
 
-    if (RECEIVING_COM_PORT_HANDLE != INVALID_HANDLE_VALUE)
+    if (g_receivingCOMPortHandle != INVALID_HANDLE_VALUE)
     {
-        CloseHandle(RECEIVING_COM_PORT_HANDLE);
-        RECEIVING_COM_PORT_HANDLE = INVALID_HANDLE_VALUE;
+        CloseHandle(g_receivingCOMPortHandle);
+        g_receivingCOMPortHandle = INVALID_HANDLE_VALUE;
     }
 }
 
 void CleanupCOMPort(void)
 {
-    PurgeComm(RECEIVING_COM_PORT_HANDLE, PURGE_RXCLEAR | PURGE_TXCLEAR | PURGE_RXABORT | PURGE_TXABORT);
-    CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
+    PurgeComm(g_receivingCOMPortHandle, PURGE_RXCLEAR | PURGE_TXCLEAR | PURGE_RXABORT | PURGE_TXABORT);
+    g_currentReceiveStage = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
 }
 
 DWORD WINAPI ReceiverThread(LPVOID lpParam)
@@ -165,30 +165,25 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
     ZeroMemory(&ov, sizeof(ov));
     ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
 
-    while (IS_RECEIVING)
+    while (g_isReceiving)
     {
         DWORD dwEventMask;
-        if (WaitCommEvent(RECEIVING_COM_PORT_HANDLE, &dwEventMask, &ov))
+        if (WaitCommEvent(g_receivingCOMPortHandle, &dwEventMask, &ov))
         {
             if (dwEventMask & EV_RXCHAR)
             {
                 COMSTAT comStat;
                 DWORD dwErrors;
-                ClearCommError(RECEIVING_COM_PORT_HANDLE, &dwErrors, &comStat);
+                ClearCommError(g_receivingCOMPortHandle, &dwErrors, &comStat);
 
-                switch (CURRENT_RECEIVE_STAGE)
+                switch (g_currentReceiveStage)
                 {
                     case RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE: {
                         if (comStat.cbInQue >= (3 * sizeof(uint64_t)))
                         {
                             uint64_t readBuffer[3];
                             DWORD bytesRead;
-                            if (!ReadFile(
-                                    RECEIVING_COM_PORT_HANDLE,
-                                    readBuffer,
-                                    3 * sizeof(uint64_t),
-                                    &bytesRead,
-                                    NULL))
+                            if (!ReadFile(g_receivingCOMPortHandle, readBuffer, 3 * sizeof(uint64_t), &bytesRead, NULL))
                             {
                                 CleanupCOMPort();
                                 CannotReadCOMPortError();
@@ -212,23 +207,23 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                                 continue;
                             }
 
-                            RECEIVING_FILE_SIZE = readBuffer[1];
-                            RECEIVING_FILE_NAME_SIZE = readBuffer[2];
+                            g_receivingFileSize = readBuffer[1];
+                            g_receivingFileNameSize = readBuffer[2];
 
-                            CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_FILE_NAME;
+                            g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_FILE_NAME;
                         }
 
                         continue;
                     }
                     case RECEIVE_STAGE_RECEIVING_FILE_NAME: {
-                        if (comStat.cbInQue >= RECEIVING_FILE_NAME_SIZE)
+                        if (comStat.cbInQue >= g_receivingFileNameSize)
                         {
-                            wchar_t *readBuffer = (wchar_t *)malloc(RECEIVING_FILE_NAME_SIZE);
+                            wchar_t *readBuffer = (wchar_t *)malloc(g_receivingFileNameSize);
                             DWORD bytesRead;
                             if (!ReadFile(
-                                    RECEIVING_COM_PORT_HANDLE,
+                                    g_receivingCOMPortHandle,
                                     readBuffer,
-                                    RECEIVING_FILE_NAME_SIZE,
+                                    g_receivingFileNameSize,
                                     &bytesRead,
                                     NULL))
                             {
@@ -238,17 +233,17 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                                 continue;
                             }
 
-                            if (bytesRead != RECEIVING_FILE_NAME_SIZE)
+                            if (bytesRead != g_receivingFileNameSize)
                             {
                                 CleanupCOMPort();
-                                BytesReadMismatchError(RECEIVING_FILE_NAME_SIZE, bytesRead);
+                                BytesReadMismatchError(g_receivingFileNameSize, bytesRead);
 
                                 continue;
                             }
 
-                            RECEIVING_FILE_NAME = readBuffer;
+                            g_receivingFileName = readBuffer;
 
-                            CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE;
+                            g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE;
                         }
 
                         continue;
@@ -261,7 +256,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                         {
                             uint64_t readBuffer[1];
                             DWORD bytesRead;
-                            if (!ReadFile(RECEIVING_COM_PORT_HANDLE, readBuffer, 8, &bytesRead, NULL))
+                            if (!ReadFile(g_receivingCOMPortHandle, readBuffer, 8, &bytesRead, NULL))
                             {
                                 CleanupCOMPort();
                                 CannotReadCOMPortError();
@@ -295,18 +290,18 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 
 BOOL StartReceiving(LPCWSTR portName)
 {
-    if (!OpenCOMPort(portName, &RECEIVING_COM_PORT_HANDLE))
+    if (!OpenCOMPort(portName, &g_receivingCOMPortHandle))
     {
         return FALSE;
     }
 
-    CURRENT_RECEIVE_STAGE = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
+    g_currentReceiveStage = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
 
-    SetCommMask(RECEIVING_COM_PORT_HANDLE, EV_RXCHAR);
+    SetCommMask(g_receivingCOMPortHandle, EV_RXCHAR);
 
-    RECEIVER_THREAD_HANDLE = CreateThread(NULL, 0, ReceiverThread, NULL, 0, NULL);
+    g_receiverThreadHandle = CreateThread(NULL, 0, ReceiverThread, NULL, 0, NULL);
 
-    IS_RECEIVING = TRUE;
+    g_isReceiving = TRUE;
 
     return TRUE;
 }
@@ -507,7 +502,7 @@ void FinaliseSerial(void)
         free(SENDING_FILE_NAME);
     }
 
-    if (IS_RECEIVING)
+    if (g_isReceiving)
     {
         StopReceiving();
     }
