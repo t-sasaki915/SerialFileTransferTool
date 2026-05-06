@@ -8,8 +8,8 @@ The circuit required is also straightforward; it can operate using only two USB-
 This project could replace the repetitive process of physically plugging and unplugging USB flash drives to move files. This might be useful for transferring build artefacts from a development machine to a target machine running vulnerable version of Windows. 
 
 ## Screenshots
-### Screenshot 1: SFTT running on Windows 2000.
-![SFTT running on Windows 2000](https://raw.githubusercontent.com/t-sasaki915/SerialFileTransferTool/refs/heads/main/screenshot1.png)
+### Screenshot 1: Transferring a file from Windows 11 to Windows 2000
+![Transferring a file from Windows 11 to Windows 2000](https://raw.githubusercontent.com/t-sasaki915/SerialFileTransferTool/refs/heads/main/screenshot1.png)
 
 ## Circuit Diagram
 ```
