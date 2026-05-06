@@ -23,8 +23,10 @@ ReceiveStage g_currentReceiveStage;
 wchar_t *g_receiveDirectory;
 uint64_t g_receivingFileSize;
 uint64_t g_receivingFileNameSize;
+uint64_t g_receivedBytesTotal;
 wchar_t *g_receivingFileName;
 HANDLE g_receivingCOMPortHandle;
+HANDLE g_receivingFileHandle;
 HANDLE g_receiverThreadHandle;
 volatile BOOL g_isReceiving = FALSE;
 
@@ -148,6 +150,12 @@ void StopReceiving(void)
         g_receivingCOMPortHandle = INVALID_HANDLE_VALUE;
     }
 
+    if (g_receivingFileHandle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(g_receivingFileHandle);
+        g_receivingFileHandle = INVALID_HANDLE_VALUE;
+    }
+
     if (g_receiveDirectory != NULL)
     {
         free(g_receiveDirectory);
@@ -178,121 +186,185 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
     while (g_isReceiving)
     {
         DWORD dwEventMask;
-        if (WaitCommEvent(g_receivingCOMPortHandle, &dwEventMask, &ov))
+        if (!WaitCommEvent(g_receivingCOMPortHandle, &dwEventMask, &ov))
         {
-            if (dwEventMask & EV_RXCHAR)
-            {
-                COMSTAT comStat;
-                DWORD dwErrors;
-                ClearCommError(g_receivingCOMPortHandle, &dwErrors, &comStat);
+            continue;
+        }
 
-                switch (g_currentReceiveStage)
+        if (!(dwEventMask & EV_RXCHAR))
+        {
+            continue;
+        }
+
+        COMSTAT comStat;
+        DWORD dwErrors;
+        ClearCommError(g_receivingCOMPortHandle, &dwErrors, &comStat);
+
+        switch (g_currentReceiveStage)
+        {
+            case RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE: {
+                if (comStat.cbInQue < (3 * sizeof(uint64_t)))
                 {
-                    case RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE: {
-                        if (comStat.cbInQue >= (3 * sizeof(uint64_t)))
-                        {
-                            uint64_t readBuffer[3];
-                            DWORD bytesRead;
-                            if (!ReadFile(g_receivingCOMPortHandle, readBuffer, 3 * sizeof(uint64_t), &bytesRead, NULL))
-                            {
-                                CleanupCOMPort();
-                                CannotReadCOMPortError();
-
-                                continue;
-                            }
-
-                            if (bytesRead != (3 * sizeof(uint64_t)))
-                            {
-                                CleanupCOMPort();
-                                BytesReadMismatchError(3 * sizeof(uint64_t), bytesRead);
-
-                                continue;
-                            }
-
-                            if (readBuffer[0] != SFTT_SERIAL_START_SIGNATURE)
-                            {
-                                CleanupCOMPort();
-                                SerialStartSignatureMismatchError(SFTT_SERIAL_START_SIGNATURE, readBuffer[0]);
-
-                                continue;
-                            }
-
-                            g_receivingFileSize = readBuffer[1];
-                            g_receivingFileNameSize = readBuffer[2];
-
-                            g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_FILE_NAME;
-                        }
-
-                        continue;
-                    }
-                    case RECEIVE_STAGE_RECEIVING_FILE_NAME: {
-                        if (comStat.cbInQue >= g_receivingFileNameSize)
-                        {
-                            wchar_t *readBuffer = (wchar_t *)malloc(g_receivingFileNameSize);
-                            DWORD bytesRead;
-                            if (!ReadFile(
-                                    g_receivingCOMPortHandle,
-                                    readBuffer,
-                                    g_receivingFileNameSize,
-                                    &bytesRead,
-                                    NULL))
-                            {
-                                CleanupCOMPort();
-                                CannotReadCOMPortError();
-
-                                continue;
-                            }
-
-                            if (bytesRead != g_receivingFileNameSize)
-                            {
-                                CleanupCOMPort();
-                                BytesReadMismatchError(g_receivingFileNameSize, bytesRead);
-
-                                continue;
-                            }
-
-                            g_receivingFileName = _wcsdup(readBuffer);
-
-                            g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE;
-                        }
-
-                        continue;
-                    }
-                    case RECEIVE_STAGE_RECEIVING_BINARY: {
-                        continue;
-                    }
-                    case RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE: {
-                        if (comStat.cbInQue >= 8)
-                        {
-                            uint64_t readBuffer[1];
-                            DWORD bytesRead;
-                            if (!ReadFile(g_receivingCOMPortHandle, readBuffer, 8, &bytesRead, NULL))
-                            {
-                                CleanupCOMPort();
-                                CannotReadCOMPortError();
-
-                                continue;
-                            }
-
-                            if (readBuffer[0] != SFTT_SERIAL_FINAL_SIGNATURE)
-                            {
-                                CleanupCOMPort();
-                                SerialFinalSignatureMismatchError(SFTT_SERIAL_FINAL_SIGNATURE, readBuffer[0]);
-
-                                continue;
-                            }
-
-                            // TODO
-                            MessageBoxW(NULL, L"Match", L"", MB_OK);
-
-                            CleanupCOMPort();
-                        }
-
-                        continue;
-                    }
+                    continue;
                 }
+
+                SetStatusBarText(STATUS_BAR_STATUS_RECEIVING);
+
+                uint64_t readBuffer[3];
+                DWORD bytesRead;
+                if (!ReadFile(g_receivingCOMPortHandle, readBuffer, 3 * sizeof(uint64_t), &bytesRead, NULL))
+                {
+                    CannotReadCOMPortError();
+
+                    goto CleanUp;
+                }
+
+                if (bytesRead != (3 * sizeof(uint64_t)))
+                {
+                    BytesReadMismatchError(3 * sizeof(uint64_t), bytesRead);
+
+                    goto CleanUp;
+                }
+
+                if (readBuffer[0] != SFTT_SERIAL_START_SIGNATURE)
+                {
+                    SerialStartSignatureMismatchError(SFTT_SERIAL_START_SIGNATURE, readBuffer[0]);
+
+                    goto CleanUp;
+                }
+
+                g_receivingFileSize = readBuffer[1];
+                g_receivingFileNameSize = readBuffer[2];
+
+                uint64_t totalSteps = 3 + g_receivingFileSize;
+                ResetProgressBar();
+                SetProgressBarRange(totalSteps);
+
+                StepProgressBar();
+
+                g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_FILE_NAME;
+
+                continue;
+            }
+            case RECEIVE_STAGE_RECEIVING_FILE_NAME: {
+                if (comStat.cbInQue < g_receivingFileNameSize)
+                {
+                    continue;
+                }
+
+                wchar_t *readBuffer = (wchar_t *)malloc(g_receivingFileNameSize);
+                DWORD bytesRead;
+                if (!ReadFile(g_receivingCOMPortHandle, readBuffer, g_receivingFileNameSize, &bytesRead, NULL))
+                {
+                    CannotReadCOMPortError();
+
+                    goto CleanUp;
+                }
+
+                if (bytesRead != g_receivingFileNameSize)
+                {
+                    BytesReadMismatchError(g_receivingFileNameSize, bytesRead);
+
+                    goto CleanUp;
+                }
+
+                if (g_receivingFileName != NULL)
+                {
+                    free(g_receivingFileName);
+                    g_receivingFileName = NULL;
+                }
+                g_receivingFileName = _wcsdup(readBuffer);
+
+                g_receivedBytesTotal = 0;
+
+                StepProgressBar();
+
+                g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_BINARY;
+
+                continue;
+            }
+            case RECEIVE_STAGE_RECEIVING_BINARY: {
+                if (comStat.cbInQue <= 0)
+                {
+                    continue;
+                }
+
+                DWORD bytesToRead = g_receivingFileSize - g_receivedBytesTotal;
+                if (bytesToRead > 0)
+                {
+                    if (bytesToRead > 4096)
+                    {
+                        bytesToRead = 4096;
+                    }
+                    if (bytesToRead > comStat.cbInQue)
+                    {
+                        bytesToRead = comStat.cbInQue;
+                    }
+
+                    BYTE binBuffer[4096];
+                    DWORD bytesRead;
+                    if (!ReadFile(g_receivingCOMPortHandle, binBuffer, bytesToRead, &bytesRead, NULL))
+                    {
+                        CannotReadCOMPortError();
+
+                        goto CleanUp;
+                    }
+
+                    g_receivedBytesTotal += bytesRead;
+                    AddStepToProgressBar(bytesRead);
+                }
+
+                if (g_receivedBytesTotal >= g_receivingFileSize)
+                {
+                    g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE;
+                }
+
+                continue;
+            }
+            case RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE: {
+                if (comStat.cbInQue < 8)
+                {
+                    continue;
+                }
+
+                uint64_t readBuffer[1];
+                DWORD bytesRead;
+                if (!ReadFile(g_receivingCOMPortHandle, readBuffer, 8, &bytesRead, NULL))
+                {
+                    CannotReadCOMPortError();
+
+                    goto CleanUp;
+                }
+
+                if (readBuffer[0] != SFTT_SERIAL_FINAL_SIGNATURE)
+                {
+                    SerialFinalSignatureMismatchError(SFTT_SERIAL_FINAL_SIGNATURE, readBuffer[0]);
+
+                    goto CleanUp;
+                }
+
+                if (g_receivingFileName != NULL)
+                {
+                    free(g_receivingFileName);
+                    g_receivingFileName = NULL;
+                }
+
+                StepProgressBar();
+
+                SetStatusBarText(STATUS_BAR_STATUS_READY);
+
+                // TODO
+                MessageBoxW(NULL, L"Match", L"", MB_OK);
+
+                CleanupCOMPort();
+
+                continue;
             }
         }
+
+    CleanUp:
+        CleanupCOMPort();
+        SetStatusBarText(STATUS_BAR_STATUS_READY);
     }
 
     return 0;
@@ -489,6 +561,11 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
 
 void FinaliseSerial(void)
 {
+    if (g_isReceiving)
+    {
+        StopReceiving();
+    }
+
     if (g_senderThreadHandle != INVALID_HANDLE_VALUE)
     {
         TerminateThread(g_senderThreadHandle, 0);
@@ -504,6 +581,11 @@ void FinaliseSerial(void)
         CloseHandle(g_sendingFileHandle);
     }
 
+    if (g_receivingFileHandle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(g_receivingFileHandle);
+    }
+
     if (g_receiveDirectory != NULL)
     {
         free(g_receiveDirectory);
@@ -517,10 +599,5 @@ void FinaliseSerial(void)
     if (g_receivingFileName != NULL)
     {
         free(g_receivingFileName);
-    }
-
-    if (g_isReceiving)
-    {
-        StopReceiving();
     }
 }
