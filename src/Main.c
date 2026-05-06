@@ -91,6 +91,7 @@ int main(void)
     logicSet.onSendFilePathBrowseButton = OnSendFilePathBrowseButton;
     logicSet.onSendFileButton = OnSendFileButton;
 
+    InitialiseUtilFunctions();
     InitialiseSerial();
     InitialiseUI(logicSet);
 

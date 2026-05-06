@@ -5,6 +5,8 @@
 
 #define MAX_PATH_LENGTH 260
 
+void InitialiseUtilFunctions(void);
+
 wchar_t *GetFileName(wchar_t *filePath);
 
 int Format(wchar_t *buffer, size_t count, const wchar_t *format, ...);

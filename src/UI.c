@@ -91,35 +91,35 @@
 #define STATUS_BAR_TEXT_SENDING L"Sending"
 #define STATUS_BAR_TEXT_RECEIVING L"Receiving"
 
-HINSTANCE MAIN_INSTANCE;
+HINSTANCE g_mainInstance;
 
-LogicSet MAIN_LOGIC_SET;
+LogicSet g_mainLogicSet;
 
-HFONT UI_FONT;
+HFONT g_uiFont;
 
-HWND MAIN_WINDOW;
-HWND MAIN_WINDOW_STATUS_BAR;
-HWND MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR;
-HWND PORT_SELECT_COMBO_BOX;
-HWND PORT_SELECT_UPDATE_BUTTON;
-HWND MODE_CHANGE_BUTTON_SEND_MODE;
-HWND MODE_CHANGE_BUTTON_RECEIVE_MODE;
-HWND START_RECEIVING_BUTTON;
-HWND SEND_FILE_PATH_TEXTBOX;
-HWND SEND_FILE_PATH_BROWSE_BUTTON;
-HWND SEND_FILE_BUTTON;
+HWND g_mainWindow;
+HWND g_mainWindowStatusBar;
+HWND g_mainWindowStatusBarProgressBar;
+HWND g_portSelectComboBox;
+HWND g_portSelectUpdateButton;
+HWND g_modeChangeButtonSendMode;
+HWND g_modeChangeButtonReceiveMode;
+HWND g_startReceivingButton;
+HWND g_sendFilePathTextBox;
+HWND g_sendFilePathBrowseButton;
+HWND g_sendFileButton;
 
-ApplicationMode CURRENT_APPLICATION_MODE;
+ApplicationMode g_currentApplicationMode;
 
 void InitialiseUI(LogicSet mainLogicSet)
 {
     InitCommonControls();
 
-    MAIN_INSTANCE = GetModuleHandleW(NULL);
+    g_mainInstance = GetModuleHandleW(NULL);
 
-    MAIN_LOGIC_SET = mainLogicSet;
+    g_mainLogicSet = mainLogicSet;
 
-    UI_FONT = CreateFontW(
+    g_uiFont = CreateFontW(
         UI_FONT_SIZE,
         0,
         0,
@@ -138,24 +138,24 @@ void InitialiseUI(LogicSet mainLogicSet)
 
 void FreePortSelectListPortNamePointers(void)
 {
-    int itemCount = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETCOUNT, (WPARAM)0, (LPARAM)0);
+    int itemCount = (int)SendMessageW(g_portSelectComboBox, CB_GETCOUNT, (WPARAM)0, (LPARAM)0);
 
     for (int i = 0; i < itemCount; i++)
     {
-        LRESULT itemData = SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETITEMDATA, (WPARAM)i, (LPARAM)0);
+        LRESULT itemData = SendMessageW(g_portSelectComboBox, CB_GETITEMDATA, (WPARAM)i, (LPARAM)0);
         if (itemData != CB_ERR && itemData != 0)
         {
             free((wchar_t *)itemData);
         }
     }
 
-    SendMessageW(PORT_SELECT_COMBO_BOX, CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
+    SendMessageW(g_portSelectComboBox, CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
 }
 
 void UpdatePortSelectList(void)
 {
-    EnableWindow(PORT_SELECT_COMBO_BOX, FALSE);
-    EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
+    EnableWindow(g_portSelectComboBox, FALSE);
+    EnableWindow(g_portSelectUpdateButton, FALSE);
 
     FreePortSelectListPortNamePointers();
 
@@ -167,20 +167,19 @@ void UpdatePortSelectList(void)
     {
         AvailablePort port = availablePorts[i];
 
-        int itemIndex =
-            (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_ADDSTRING, (WPARAM)0, (LPARAM)port.friendlyPortName);
-        SendMessageW(PORT_SELECT_COMBO_BOX, CB_SETITEMDATA, (WPARAM)itemIndex, (LPARAM)port.portName);
+        int itemIndex = (int)SendMessageW(g_portSelectComboBox, CB_ADDSTRING, (WPARAM)0, (LPARAM)port.friendlyPortName);
+        SendMessageW(g_portSelectComboBox, CB_SETITEMDATA, (WPARAM)itemIndex, (LPARAM)port.portName);
 
         free(port.friendlyPortName);
     }
 
-    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
-    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
+    EnableWindow(g_portSelectComboBox, TRUE);
+    EnableWindow(g_portSelectUpdateButton, TRUE);
 }
 
 void SetApplicationMode(ApplicationMode appMode)
 {
-    CURRENT_APPLICATION_MODE = appMode;
+    g_currentApplicationMode = appMode;
 
     LPCWSTR newMainWindowTitle = L"";
     int newMainWindowHeight = 0;
@@ -200,9 +199,9 @@ void SetApplicationMode(ApplicationMode appMode)
         }
     }
 
-    SendMessageW(MAIN_WINDOW, WM_SETTEXT, (WPARAM)0, (LPARAM)newMainWindowTitle);
+    SendMessageW(g_mainWindow, WM_SETTEXT, (WPARAM)0, (LPARAM)newMainWindowTitle);
     SetWindowPos(
-        MAIN_WINDOW,
+        g_mainWindow,
         NULL,
         0,
         0,
@@ -210,24 +209,24 @@ void SetApplicationMode(ApplicationMode appMode)
         newMainWindowHeight,
         SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER);
 
-    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, (appMode != APPLICATION_MODE_SEND_MODE));
-    EnableWindow(MODE_CHANGE_BUTTON_RECEIVE_MODE, (appMode != APPLICATION_MODE_RECEIVE_MODE));
+    EnableWindow(g_modeChangeButtonSendMode, (appMode != APPLICATION_MODE_SEND_MODE));
+    EnableWindow(g_modeChangeButtonReceiveMode, (appMode != APPLICATION_MODE_RECEIVE_MODE));
 
     int receiveModeComponentShowMode = (appMode == APPLICATION_MODE_RECEIVE_MODE) ? SW_SHOW : SW_HIDE;
-    ShowWindow(START_RECEIVING_BUTTON, receiveModeComponentShowMode);
+    ShowWindow(g_startReceivingButton, receiveModeComponentShowMode);
 
     int sendModeComponentShowMode = (appMode == APPLICATION_MODE_SEND_MODE) ? SW_SHOW : SW_HIDE;
-    ShowWindow(SEND_FILE_PATH_TEXTBOX, sendModeComponentShowMode);
-    ShowWindow(SEND_FILE_PATH_BROWSE_BUTTON, sendModeComponentShowMode);
-    ShowWindow(SEND_FILE_BUTTON, sendModeComponentShowMode);
+    ShowWindow(g_sendFilePathTextBox, sendModeComponentShowMode);
+    ShowWindow(g_sendFilePathBrowseButton, sendModeComponentShowMode);
+    ShowWindow(g_sendFileButton, sendModeComponentShowMode);
 
-    InvalidateRect(MAIN_WINDOW, NULL, FALSE);
+    InvalidateRect(g_mainWindow, NULL, FALSE);
 }
 
 BOOL GetSelectedPortName(wchar_t **resultPtr)
 {
-    int portListIndex = (int)SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETCURSEL, (WPARAM)0, (LPARAM)0);
-    LRESULT portListData = SendMessageW(PORT_SELECT_COMBO_BOX, CB_GETITEMDATA, (WPARAM)portListIndex, (LPARAM)0);
+    int portListIndex = (int)SendMessageW(g_portSelectComboBox, CB_GETCURSEL, (WPARAM)0, (LPARAM)0);
+    LRESULT portListData = SendMessageW(g_portSelectComboBox, CB_GETITEMDATA, (WPARAM)portListIndex, (LPARAM)0);
     if (portListData == CB_ERR || portListData == 0)
     {
         return FALSE;
@@ -243,7 +242,7 @@ BOOL BrowseFileToSend(wchar_t *resultPtr)
     OPENFILENAMEW ofn;
     ZeroMemory(&ofn, sizeof(ofn));
     ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = MAIN_WINDOW;
+    ofn.hwndOwner = g_mainWindow;
     ofn.lpstrFile = resultPtr;
     ofn.nMaxFile = MAX_PATH_LENGTH;
     ofn.lpstrFilter = L"All Files\0*.*\0";
@@ -255,46 +254,46 @@ BOOL BrowseFileToSend(wchar_t *resultPtr)
 
 void UpdateSendFilePathTextbox(wchar_t *filePath)
 {
-    SetWindowTextW(SEND_FILE_PATH_TEXTBOX, filePath);
+    SetWindowTextW(g_sendFilePathTextBox, filePath);
 }
 
 void GetSendFilePath(wchar_t *resultPtr)
 {
-    GetWindowTextW(SEND_FILE_PATH_TEXTBOX, resultPtr, MAX_PATH_LENGTH);
+    GetWindowTextW(g_sendFilePathTextBox, resultPtr, MAX_PATH_LENGTH);
 }
 
 void EnableSetModeControls(BOOL enable)
 {
-    EnableWindow(PORT_SELECT_COMBO_BOX, enable);
-    EnableWindow(PORT_SELECT_UPDATE_BUTTON, enable);
-    EnableWindow(MODE_CHANGE_BUTTON_RECEIVE_MODE, enable);
-    EnableWindow(SEND_FILE_PATH_TEXTBOX, enable);
-    EnableWindow(SEND_FILE_PATH_BROWSE_BUTTON, enable);
-    EnableWindow(SEND_FILE_BUTTON, enable);
+    EnableWindow(g_portSelectComboBox, enable);
+    EnableWindow(g_portSelectUpdateButton, enable);
+    EnableWindow(g_modeChangeButtonReceiveMode, enable);
+    EnableWindow(g_sendFilePathTextBox, enable);
+    EnableWindow(g_sendFilePathBrowseButton, enable);
+    EnableWindow(g_sendFileButton, enable);
 }
 
 void RequestErrorDialog(wchar_t *msg)
 {
     wchar_t *persistentMsg = _wcsdup(msg);
-    SendMessageW(MAIN_WINDOW, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)persistentMsg, (LPARAM)0);
+    SendMessageW(g_mainWindow, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)persistentMsg, (LPARAM)0);
 }
 
 void UIStopReceiving(void)
 {
-    SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_START);
+    SetWindowTextW(g_startReceivingButton, START_RECEIVING_BUTTON_LABEL_START);
 
-    EnableWindow(PORT_SELECT_COMBO_BOX, TRUE);
-    EnableWindow(PORT_SELECT_UPDATE_BUTTON, TRUE);
-    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, TRUE);
+    EnableWindow(g_portSelectComboBox, TRUE);
+    EnableWindow(g_portSelectUpdateButton, TRUE);
+    EnableWindow(g_modeChangeButtonSendMode, TRUE);
 }
 
 void UIStartReceiving(void)
 {
-    SetWindowTextW(START_RECEIVING_BUTTON, START_RECEIVING_BUTTON_LABEL_STOP);
+    SetWindowTextW(g_startReceivingButton, START_RECEIVING_BUTTON_LABEL_STOP);
 
-    EnableWindow(PORT_SELECT_COMBO_BOX, FALSE);
-    EnableWindow(PORT_SELECT_UPDATE_BUTTON, FALSE);
-    EnableWindow(MODE_CHANGE_BUTTON_SEND_MODE, FALSE);
+    EnableWindow(g_portSelectComboBox, FALSE);
+    EnableWindow(g_portSelectUpdateButton, FALSE);
+    EnableWindow(g_modeChangeButtonSendMode, FALSE);
 }
 
 void SetStatusBarText(StatusBarStatus status)
@@ -316,39 +315,39 @@ void SetStatusBarText(StatusBarStatus status)
         }
     }
 
-    SendMessageW(MAIN_WINDOW_STATUS_BAR, SB_SETTEXTW, 0 | 0, (LPARAM)newStatusBarText);
+    SendMessageW(g_mainWindowStatusBar, SB_SETTEXTW, 0 | 0, (LPARAM)newStatusBarText);
 }
 
 void SetProgressBarRange(uint32_t max)
 {
-    SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_SETRANGE32, (WPARAM)0, (LPARAM)max);
-    SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_SETSTEP, (WPARAM)1, (LPARAM)0);
+    SendMessageW(g_mainWindowStatusBarProgressBar, PBM_SETRANGE32, (WPARAM)0, (LPARAM)max);
+    SendMessageW(g_mainWindowStatusBarProgressBar, PBM_SETSTEP, (WPARAM)1, (LPARAM)0);
 }
 
 void StepProgressBar(void)
 {
-    SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_STEPIT, (WPARAM)0, (LPARAM)0);
+    SendMessageW(g_mainWindowStatusBarProgressBar, PBM_STEPIT, (WPARAM)0, (LPARAM)0);
 }
 
 void AddStepToProgressBar(uint32_t steps)
 {
-    uint32_t current = (uint32_t)SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_GETPOS, (WPARAM)0, (LPARAM)0);
-    SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_SETPOS, (WPARAM)current + steps, (LPARAM)0);
+    uint32_t current = (uint32_t)SendMessageW(g_mainWindowStatusBarProgressBar, PBM_GETPOS, (WPARAM)0, (LPARAM)0);
+    SendMessageW(g_mainWindowStatusBarProgressBar, PBM_SETPOS, (WPARAM)current + steps, (LPARAM)0);
 }
 
 void ResetProgressBar(void)
 {
-    SendMessageW(MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR, PBM_SETPOS, (WPARAM)0, (LPARAM)0);
+    SendMessageW(g_mainWindowStatusBarProgressBar, PBM_SETPOS, (WPARAM)0, (LPARAM)0);
 }
 
 void UIStartSending(void)
 {
-    SendMessageW(MAIN_WINDOW, WM_SFTT_UI_START_SENDING, (WPARAM)0, (LPARAM)0);
+    SendMessageW(g_mainWindow, WM_SFTT_UI_START_SENDING, (WPARAM)0, (LPARAM)0);
 }
 
 void UIFinishSending(void)
 {
-    SendMessageW(MAIN_WINDOW, WM_SFTT_UI_FINISH_SENDING, (WPARAM)0, (LPARAM)0);
+    SendMessageW(g_mainWindow, WM_SFTT_UI_FINISH_SENDING, (WPARAM)0, (LPARAM)0);
 }
 
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
@@ -358,7 +357,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
         case WM_SFTT_SHOW_ERROR_DIALOG: {
             wchar_t *msg = (wchar_t *)wParam;
 
-            MessageBoxW(MAIN_WINDOW, msg, L"SFTT", MB_ICONERROR | MB_OK);
+            MessageBoxW(g_mainWindow, msg, L"SFTT", MB_ICONERROR | MB_OK);
 
             free(msg);
 
@@ -387,7 +386,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
             hdc = BeginPaint(hwnd, &ps);
 
-            HFONT oldFont = (HFONT)SelectObject(hdc, UI_FONT);
+            HFONT oldFont = (HFONT)SelectObject(hdc, g_uiFont);
 
             TextOutW(
                 hdc,
@@ -396,7 +395,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                 PORT_SELECT_LABEL_TEXT,
                 PORT_SELECT_LABEL_TEXT_LENGTH);
 
-            if (CURRENT_APPLICATION_MODE == APPLICATION_MODE_SEND_MODE)
+            if (g_currentApplicationMode == APPLICATION_MODE_SEND_MODE)
             {
                 TextOutW(
                     hdc,
@@ -423,7 +422,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
             return 1;
         }
         case WM_SIZE: {
-            SendMessageW(MAIN_WINDOW_STATUS_BAR, wMsg, wParam, lParam);
+            SendMessageW(g_mainWindowStatusBar, wMsg, wParam, lParam);
 
             return 0;
         }
@@ -431,32 +430,32 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
             switch (LOWORD(wParam))
             {
                 case PORT_SELECT_UPDATE_BUTTON_ID: {
-                    MAIN_LOGIC_SET.onPortSelectUpdateButton();
+                    g_mainLogicSet.onPortSelectUpdateButton();
 
                     return 0;
                 }
                 case MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID: {
-                    MAIN_LOGIC_SET.onModeChangeButtonSendMode();
+                    g_mainLogicSet.onModeChangeButtonSendMode();
 
                     return 0;
                 }
                 case MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID: {
-                    MAIN_LOGIC_SET.onModeChangeButtonReceiveMode();
+                    g_mainLogicSet.onModeChangeButtonReceiveMode();
 
                     return 0;
                 }
                 case START_RECEIVING_BUTTON_ID: {
-                    MAIN_LOGIC_SET.onStartReceivingButton();
+                    g_mainLogicSet.onStartReceivingButton();
 
                     return 0;
                 }
                 case SEND_FILE_PATH_BROWSE_BUTTON_ID: {
-                    MAIN_LOGIC_SET.onSendFilePathBrowseButton();
+                    g_mainLogicSet.onSendFilePathBrowseButton();
 
                     return 0;
                 }
                 case SEND_FILE_BUTTON_ID: {
-                    MAIN_LOGIC_SET.onSendFileButton();
+                    g_mainLogicSet.onSendFileButton();
 
                     return 0;
                 }
@@ -477,13 +476,13 @@ void ShowMainWindow(void)
     ZeroMemory(&mainWindowClass, sizeof(mainWindowClass));
     mainWindowClass.cbSize = sizeof(mainWindowClass);
     mainWindowClass.lpszClassName = MAIN_WINDOW_CLASS_NAME;
-    mainWindowClass.hInstance = MAIN_INSTANCE;
+    mainWindowClass.hInstance = g_mainInstance;
     mainWindowClass.style = CS_VREDRAW | CS_HREDRAW;
     mainWindowClass.lpfnWndProc = MainWindowWndProc;
 
     RegisterClassExW(&mainWindowClass);
 
-    MAIN_WINDOW = CreateWindowW(
+    g_mainWindow = CreateWindowW(
         MAIN_WINDOW_CLASS_NAME,
         NULL,
         WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
@@ -493,10 +492,10 @@ void ShowMainWindow(void)
         0,
         NULL,
         NULL,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
-    PORT_SELECT_COMBO_BOX = CreateWindowW(
+    g_portSelectComboBox = CreateWindowW(
         L"COMBOBOX",
         NULL,
         CBS_DROPDOWNLIST | WS_CHILD | WS_VSCROLL | WS_VISIBLE,
@@ -504,14 +503,14 @@ void ShowMainWindow(void)
         PORT_SELECT_COMBOBOX_Y,
         PORT_SELECT_COMBOBOX_WIDTH,
         PORT_SELECT_COMBOBOX_HEIGHT,
-        MAIN_WINDOW,
+        g_mainWindow,
         (HMENU)PORT_SELECT_COMBOBOX_ID,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
-    SendMessageW(PORT_SELECT_COMBO_BOX, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+    SendMessageW(g_portSelectComboBox, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
-    PORT_SELECT_UPDATE_BUTTON = CreateWindowW(
+    g_portSelectUpdateButton = CreateWindowW(
         L"BUTTON",
         PORT_SELECT_UPDATE_BUTTON_LABEL,
         WS_CHILD | WS_VISIBLE,
@@ -519,14 +518,14 @@ void ShowMainWindow(void)
         PORT_SELECT_UPDATE_BUTTON_Y,
         PORT_SELECT_UPDATE_BUTTON_WIDTH,
         PORT_SELECT_UPDATE_BUTTON_HEIGHT,
-        MAIN_WINDOW,
+        g_mainWindow,
         (HMENU)PORT_SELECT_UPDATE_BUTTON_ID,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
-    SendMessageW(PORT_SELECT_UPDATE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+    SendMessageW(g_portSelectUpdateButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
-    MODE_CHANGE_BUTTON_SEND_MODE = CreateWindowW(
+    g_modeChangeButtonSendMode = CreateWindowW(
         L"BUTTON",
         MODE_CHANGE_BUTTON_SEND_MODE_LABEL,
         WS_CHILD | WS_VISIBLE,
@@ -534,14 +533,14 @@ void ShowMainWindow(void)
         MODE_CHANGE_BUTTON_SEND_MODE_Y,
         MODE_CHANGE_BUTTON_SEND_MODE_WIDTH,
         MODE_CHANGE_BUTTON_SEND_MODE_HEIGHT,
-        MAIN_WINDOW,
+        g_mainWindow,
         (HMENU)MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
-    SendMessageW(MODE_CHANGE_BUTTON_SEND_MODE, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+    SendMessageW(g_modeChangeButtonSendMode, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
-    MODE_CHANGE_BUTTON_RECEIVE_MODE = CreateWindowW(
+    g_modeChangeButtonReceiveMode = CreateWindowW(
         L"BUTTON",
         MODE_CHANGE_BUTTON_RECEIVE_MODE_LABEL,
         WS_CHILD | WS_VISIBLE,
@@ -549,14 +548,14 @@ void ShowMainWindow(void)
         MODE_CHANGE_BUTTON_RECEIVE_MODE_Y,
         MODE_CHANGE_BUTTON_RECEIVE_MODE_WIDTH,
         MODE_CHANGE_BUTTON_RECEIVE_MODE_HEIGHT,
-        MAIN_WINDOW,
+        g_mainWindow,
         (HMENU)MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
-    SendMessageW(MODE_CHANGE_BUTTON_RECEIVE_MODE, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+    SendMessageW(g_modeChangeButtonReceiveMode, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
-    START_RECEIVING_BUTTON = CreateWindowW(
+    g_startReceivingButton = CreateWindowW(
         L"BUTTON",
         START_RECEIVING_BUTTON_LABEL_START,
         WS_CHILD | WS_VISIBLE,
@@ -564,14 +563,14 @@ void ShowMainWindow(void)
         START_RECEIVING_BUTTON_Y,
         START_RECEIVING_BUTTON_WIDTH,
         START_RECEIVING_BUTTON_HEIGHT,
-        MAIN_WINDOW,
+        g_mainWindow,
         (HMENU)START_RECEIVING_BUTTON_ID,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
-    SendMessageW(START_RECEIVING_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+    SendMessageW(g_startReceivingButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
-    SEND_FILE_PATH_TEXTBOX = CreateWindowW(
+    g_sendFilePathTextBox = CreateWindowW(
         L"EDIT",
         NULL,
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
@@ -579,14 +578,14 @@ void ShowMainWindow(void)
         SEND_FILE_PATH_TEXTBOX_Y,
         SEND_FILE_PATH_TEXTBOX_WIDTH,
         SEND_FILE_PATH_TEXTBOX_HEIGHT,
-        MAIN_WINDOW,
+        g_mainWindow,
         NULL,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
-    SendMessageW(SEND_FILE_PATH_TEXTBOX, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+    SendMessageW(g_sendFilePathTextBox, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
-    SEND_FILE_PATH_BROWSE_BUTTON = CreateWindowW(
+    g_sendFilePathBrowseButton = CreateWindowW(
         L"BUTTON",
         SEND_FILE_PATH_BROWSE_BUTTON_LABEL,
         WS_CHILD | WS_VISIBLE,
@@ -594,14 +593,14 @@ void ShowMainWindow(void)
         SEND_FILE_PATH_BROWSE_BUTTON_Y,
         SEND_FILE_PATH_BROWSE_BUTTON_WIDTH,
         SEND_FILE_PATH_BROWSE_BUTTON_HEIGHT,
-        MAIN_WINDOW,
+        g_mainWindow,
         (HMENU)SEND_FILE_PATH_BROWSE_BUTTON_ID,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
-    SendMessageW(SEND_FILE_PATH_BROWSE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+    SendMessageW(g_sendFilePathBrowseButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
-    SEND_FILE_BUTTON = CreateWindowW(
+    g_sendFileButton = CreateWindowW(
         L"BUTTON",
         SEND_FILE_BUTTON_LABEL,
         WS_CHILD | WS_VISIBLE,
@@ -609,14 +608,14 @@ void ShowMainWindow(void)
         SEND_FILE_BUTTON_Y,
         SEND_FILE_BUTTON_WIDTH,
         SEND_FILE_BUTTON_HEIGHT,
-        MAIN_WINDOW,
+        g_mainWindow,
         (HMENU)SEND_FILE_BUTTON_ID,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
-    SendMessageW(SEND_FILE_BUTTON, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+    SendMessageW(g_sendFileButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
-    MAIN_WINDOW_STATUS_BAR = CreateWindowW(
+    g_mainWindowStatusBar = CreateWindowW(
         STATUSCLASSNAMEW,
         NULL,
         CCS_BOTTOM | WS_CHILD | WS_VISIBLE,
@@ -624,20 +623,20 @@ void ShowMainWindow(void)
         0,
         0,
         0,
-        MAIN_WINDOW,
+        g_mainWindow,
         NULL,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
     int parts[2] = {MAIN_WINDOW_WIDTH / 3, -1};
-    SendMessageW(MAIN_WINDOW_STATUS_BAR, SB_SETPARTS, (WPARAM)2, (LPARAM)parts);
+    SendMessageW(g_mainWindowStatusBar, SB_SETPARTS, (WPARAM)2, (LPARAM)parts);
 
-    SendMessageW(MAIN_WINDOW_STATUS_BAR, WM_SETFONT, (WPARAM)UI_FONT, (LPARAM)1);
+    SendMessageW(g_mainWindowStatusBar, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
     RECT rcPart;
-    SendMessageW(MAIN_WINDOW_STATUS_BAR, SB_GETRECT, (WPARAM)1, (LPARAM)&rcPart);
+    SendMessageW(g_mainWindowStatusBar, SB_GETRECT, (WPARAM)1, (LPARAM)&rcPart);
 
-    MAIN_WINDOW_STATUS_BAR_PROGRESS_BAR = CreateWindowW(
+    g_mainWindowStatusBarProgressBar = CreateWindowW(
         PROGRESS_CLASSW,
         NULL,
         WS_CHILD | WS_VISIBLE,
@@ -645,9 +644,9 @@ void ShowMainWindow(void)
         rcPart.top + 2,
         (rcPart.right - rcPart.left) - 4,
         (rcPart.bottom - rcPart.top) - 4,
-        MAIN_WINDOW_STATUS_BAR,
+        g_mainWindowStatusBar,
         NULL,
-        MAIN_INSTANCE,
+        g_mainInstance,
         NULL);
 
     SetStatusBarText(STATUS_BAR_STATUS_READY);
@@ -656,16 +655,16 @@ void ShowMainWindow(void)
 
     SetApplicationMode(APPLICATION_MODE_SEND_MODE);
 
-    ShowWindow(MAIN_WINDOW, SW_SHOWNORMAL);
-    UpdateWindow(MAIN_WINDOW);
+    ShowWindow(g_mainWindow, SW_SHOWNORMAL);
+    UpdateWindow(g_mainWindow);
 }
 
 void FinaliseUI(void)
 {
     FreePortSelectListPortNamePointers();
 
-    if (UI_FONT != NULL)
+    if (g_uiFont != NULL)
     {
-        DeleteObject(UI_FONT);
+        DeleteObject(g_uiFont);
     }
 }
