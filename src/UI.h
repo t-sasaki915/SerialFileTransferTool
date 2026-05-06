@@ -17,24 +17,7 @@ typedef enum
     STATUS_BAR_STATUS_RECEIVING
 } StatusBarStatus;
 
-typedef void (*P_ONPORTSELECTUPDATEBUTTON)(void);
-typedef void (*P_ONMODECHANGEBUTTONSENDMODE)(void);
-typedef void (*P_ONMODECHANGEBUTTONRECEIVEMODE)(void);
-typedef void (*P_ONSTARTRECEIVINGBUTTON)(void);
-typedef void (*P_ONSENDFILEPATHBROWSEBUTTON)(void);
-typedef void (*P_ONSENDFILEBUTTON)(void);
-
-typedef struct
-{
-    P_ONPORTSELECTUPDATEBUTTON onPortSelectUpdateButton;
-    P_ONMODECHANGEBUTTONSENDMODE onModeChangeButtonSendMode;
-    P_ONMODECHANGEBUTTONRECEIVEMODE onModeChangeButtonReceiveMode;
-    P_ONSTARTRECEIVINGBUTTON onStartReceivingButton;
-    P_ONSENDFILEPATHBROWSEBUTTON onSendFilePathBrowseButton;
-    P_ONSENDFILEBUTTON onSendFileButton;
-} LogicSet;
-
-void InitialiseUI(LogicSet mainLogicSet);
+void InitialiseUI(void);
 
 void SetApplicationMode(ApplicationMode appMode);
 

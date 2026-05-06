@@ -5,6 +5,7 @@
 
 #include <commctrl.h>
 
+#include "Error.h"
 #include "Serial.h"
 #include "UI.h"
 #include "Util.h"
@@ -93,8 +94,6 @@
 
 HINSTANCE g_mainInstance;
 
-LogicSet g_mainLogicSet;
-
 HFONT g_uiFont;
 
 HWND g_mainWindow;
@@ -111,13 +110,11 @@ HWND g_sendFileButton;
 
 ApplicationMode g_currentApplicationMode;
 
-void InitialiseUI(LogicSet mainLogicSet)
+void InitialiseUI(void)
 {
     InitCommonControls();
 
     g_mainInstance = GetModuleHandleW(NULL);
-
-    g_mainLogicSet = mainLogicSet;
 
     g_uiFont = CreateFontW(
         UI_FONT_SIZE,
@@ -430,32 +427,82 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
             switch (LOWORD(wParam))
             {
                 case PORT_SELECT_UPDATE_BUTTON_ID: {
-                    g_mainLogicSet.onPortSelectUpdateButton();
+                    UpdatePortSelectList();
 
                     return 0;
                 }
                 case MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID: {
-                    g_mainLogicSet.onModeChangeButtonSendMode();
+                    SetApplicationMode(APPLICATION_MODE_SEND_MODE);
 
                     return 0;
                 }
                 case MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID: {
-                    g_mainLogicSet.onModeChangeButtonReceiveMode();
+                    SetApplicationMode(APPLICATION_MODE_RECEIVE_MODE);
 
                     return 0;
                 }
                 case START_RECEIVING_BUTTON_ID: {
-                    g_mainLogicSet.onStartReceivingButton();
+                    if (IsReceiving())
+                    {
+                        StopReceiving();
+                        UIStopReceiving();
+                    }
+                    else
+                    {
+                        wchar_t *selectedPortName;
+                        if (!GetSelectedPortName(&selectedPortName))
+                        {
+                            PleaseSpecifyPortError();
+
+                            return 0;
+                        }
+
+                        if (StartReceiving(selectedPortName))
+                        {
+                            UIStartReceiving();
+                        }
+                        else
+                        {
+                            StopReceiving();
+                            UIStopReceiving();
+
+                            CannotOpenCOMPortError(selectedPortName);
+
+                            return 0;
+                        }
+                    }
 
                     return 0;
                 }
                 case SEND_FILE_PATH_BROWSE_BUTTON_ID: {
-                    g_mainLogicSet.onSendFilePathBrowseButton();
+                    wchar_t filePath[MAX_PATH_LENGTH] = L"";
+
+                    if (BrowseFileToSend(filePath))
+                    {
+                        UpdateSendFilePathTextbox(filePath);
+                    }
 
                     return 0;
                 }
                 case SEND_FILE_BUTTON_ID: {
-                    g_mainLogicSet.onSendFileButton();
+                    wchar_t *selectedPortName;
+                    if (!GetSelectedPortName(&selectedPortName))
+                    {
+                        PleaseSpecifyPortError();
+
+                        return 0;
+                    }
+
+                    wchar_t filePath[MAX_PATH_LENGTH];
+                    GetSendFilePath(filePath);
+                    if (wcslen(filePath) == 0)
+                    {
+                        PleaseSpecifyFilePathError();
+
+                        return 0;
+                    }
+
+                    SendFile(selectedPortName, filePath);
 
                     return 0;
                 }
