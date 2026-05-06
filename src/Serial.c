@@ -27,12 +27,12 @@ HANDLE g_receivingCOMPortHandle;
 HANDLE g_receiverThreadHandle;
 volatile BOOL g_isReceiving = FALSE;
 
-HANDLE SENDER_THREAD_HANDLE;
-HANDLE SENDING_COM_PORT_HANDLE;
-HANDLE SENDING_FILE_HANDLE;
-wchar_t *SENDING_FILE_NAME;
-size_t SENDING_FILE_SIZE;
-size_t SENDING_FILE_NAME_SIZE;
+HANDLE g_senderThreadHandle;
+HANDLE g_sendingCOMPortHandle;
+HANDLE g_sendingFileHandle;
+wchar_t *g_sendingFileName;
+size_t g_sendingFileSize;
+size_t g_sendingFileNameSize;
 
 DCB DEFAULT_DCB;
 
@@ -310,7 +310,7 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
 {
     (void)lpParam;
 
-    size_t totalSteps = 3 + SENDING_FILE_SIZE;
+    size_t totalSteps = 3 + g_sendingFileSize;
     ResetProgressBar();
     SetProgressBarRange(totalSteps);
 
@@ -318,9 +318,9 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
 
     uint64_t sendBuffer[3] = {
         SFTT_SERIAL_START_SIGNATURE,
-        (uint64_t)SENDING_FILE_SIZE,
-        (uint64_t)SENDING_FILE_NAME_SIZE};
-    if (!WriteFile(SENDING_COM_PORT_HANDLE, sendBuffer, 3 * sizeof(uint64_t), &bytesWritten, NULL))
+        (uint64_t)g_sendingFileSize,
+        (uint64_t)g_sendingFileNameSize};
+    if (!WriteFile(g_sendingCOMPortHandle, sendBuffer, 3 * sizeof(uint64_t), &bytesWritten, NULL))
     {
         CannotWriteCOMPortError();
 
@@ -335,15 +335,15 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
 
     StepProgressBar();
 
-    if (!WriteFile(SENDING_COM_PORT_HANDLE, SENDING_FILE_NAME, SENDING_FILE_NAME_SIZE, &bytesWritten, NULL))
+    if (!WriteFile(g_sendingCOMPortHandle, g_sendingFileName, g_sendingFileNameSize, &bytesWritten, NULL))
     {
         CannotWriteCOMPortError();
 
         goto CleanUp;
     }
-    if (bytesWritten != SENDING_FILE_NAME_SIZE)
+    if (bytesWritten != g_sendingFileNameSize)
     {
-        BytesWrittenMismatchError(SENDING_FILE_NAME_SIZE, bytesWritten);
+        BytesWrittenMismatchError(g_sendingFileNameSize, bytesWritten);
 
         goto CleanUp;
     }
@@ -353,18 +353,13 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
     BYTE binBuffer[4096];
     DWORD bytesWrittenTotal = 0;
     DWORD bytesRead;
-    while (ReadFile(SENDING_FILE_HANDLE, binBuffer, sizeof(binBuffer), &bytesRead, NULL) && bytesRead > 0)
+    while (ReadFile(g_sendingFileHandle, binBuffer, sizeof(binBuffer), &bytesRead, NULL) && bytesRead > 0)
     {
         DWORD bytesWrittenThisTime;
         DWORD offset = 0;
         while (offset < bytesRead)
         {
-            if (!WriteFile(
-                    SENDING_COM_PORT_HANDLE,
-                    binBuffer + offset,
-                    bytesRead - offset,
-                    &bytesWrittenThisTime,
-                    NULL))
+            if (!WriteFile(g_sendingCOMPortHandle, binBuffer + offset, bytesRead - offset, &bytesWrittenThisTime, NULL))
             {
                 CannotWriteCOMPortError();
 
@@ -386,15 +381,15 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
         bytesWrittenTotal += offset;
     }
 
-    if (bytesWrittenTotal != SENDING_FILE_SIZE)
+    if (bytesWrittenTotal != g_sendingFileSize)
     {
-        BytesWrittenMismatchError(SENDING_FILE_SIZE, bytesWrittenTotal);
+        BytesWrittenMismatchError(g_sendingFileSize, bytesWrittenTotal);
 
         goto CleanUp;
     }
 
     uint64_t sendBuffer2[1] = {SFTT_SERIAL_FINAL_SIGNATURE};
-    if (!WriteFile(SENDING_COM_PORT_HANDLE, sendBuffer2, sizeof(uint64_t), &bytesWritten, NULL))
+    if (!WriteFile(g_sendingCOMPortHandle, sendBuffer2, sizeof(uint64_t), &bytesWritten, NULL))
     {
         CannotWriteCOMPortError();
 
@@ -410,20 +405,20 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
     StepProgressBar();
 
 CleanUp:
-    if (SENDING_COM_PORT_HANDLE != INVALID_HANDLE_VALUE)
+    if (g_sendingCOMPortHandle != INVALID_HANDLE_VALUE)
     {
-        CloseHandle(SENDING_COM_PORT_HANDLE);
-        SENDING_COM_PORT_HANDLE = INVALID_HANDLE_VALUE;
+        CloseHandle(g_sendingCOMPortHandle);
+        g_sendingCOMPortHandle = INVALID_HANDLE_VALUE;
     }
-    if (SENDING_FILE_HANDLE != INVALID_HANDLE_VALUE)
+    if (g_sendingFileHandle != INVALID_HANDLE_VALUE)
     {
-        CloseHandle(SENDING_FILE_HANDLE);
-        SENDING_FILE_HANDLE = INVALID_HANDLE_VALUE;
+        CloseHandle(g_sendingFileHandle);
+        g_sendingFileHandle = INVALID_HANDLE_VALUE;
     }
-    if (SENDING_FILE_NAME != NULL)
+    if (g_sendingFileName != NULL)
     {
-        free(SENDING_FILE_NAME);
-        SENDING_FILE_NAME = NULL;
+        free(g_sendingFileName);
+        g_sendingFileName = NULL;
     }
 
     UIFinishSending();
@@ -471,35 +466,35 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
         return;
     }
 
-    SENDING_COM_PORT_HANDLE = hComPort;
-    SENDING_FILE_HANDLE = handleFile;
-    SENDING_FILE_NAME = _wcsdup(fileName);
-    SENDING_FILE_NAME_SIZE = fileNameSize;
-    SENDING_FILE_SIZE = fileSize.QuadPart;
+    g_sendingCOMPortHandle = hComPort;
+    g_sendingFileHandle = handleFile;
+    g_sendingFileName = _wcsdup(fileName);
+    g_sendingFileNameSize = fileNameSize;
+    g_sendingFileSize = fileSize.QuadPart;
 
-    SENDER_THREAD_HANDLE = CreateThread(NULL, 0, SenderThread, NULL, 0, NULL);
+    g_senderThreadHandle = CreateThread(NULL, 0, SenderThread, NULL, 0, NULL);
 }
 
 void FinaliseSerial(void)
 {
-    if (SENDER_THREAD_HANDLE != INVALID_HANDLE_VALUE)
+    if (g_senderThreadHandle != INVALID_HANDLE_VALUE)
     {
-        TerminateThread(SENDER_THREAD_HANDLE, 0);
+        TerminateThread(g_senderThreadHandle, 0);
     }
 
-    if (SENDING_COM_PORT_HANDLE != INVALID_HANDLE_VALUE)
+    if (g_sendingCOMPortHandle != INVALID_HANDLE_VALUE)
     {
-        CloseHandle(SENDING_COM_PORT_HANDLE);
+        CloseHandle(g_sendingCOMPortHandle);
     }
 
-    if (SENDING_FILE_HANDLE != INVALID_HANDLE_VALUE)
+    if (g_sendingFileHandle != INVALID_HANDLE_VALUE)
     {
-        CloseHandle(SENDING_FILE_HANDLE);
+        CloseHandle(g_sendingFileHandle);
     }
 
-    if (SENDING_FILE_NAME != NULL)
+    if (g_sendingFileName != NULL)
     {
-        free(SENDING_FILE_NAME);
+        free(g_sendingFileName);
     }
 
     if (g_isReceiving)
