@@ -59,6 +59,8 @@ void UIStartSending(void);
 
 void UIFinishSending(void);
 
+void EnableStartReceivingButton(BOOL enable);
+
 void FinaliseUI(void);
 
 #endif

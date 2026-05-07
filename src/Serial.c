@@ -6,6 +6,8 @@
 #include "UI.h"
 #include "Util.h"
 
+#define BINARY_BUFFER_SIZE 4096
+
 #define SFTT_SERIAL_START_SIGNATURE 0x4F8A2B9C1E3D7654ULL
 #define SFTT_SERIAL_FINAL_SIGNATURE 0xB2E1094D6F83A57CULL
 
@@ -209,6 +211,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                 }
 
                 SetStatusBarText(STATUS_BAR_STATUS_RECEIVING);
+                EnableStartReceivingButton(FALSE);
 
                 uint64_t readBuffer[3];
                 DWORD bytesRead;
@@ -273,10 +276,17 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                     free(g_receivingFileName);
                     g_receivingFileName = NULL;
                 }
-                g_receivingFileName = _wcsdup(readBuffer);
+                g_receivingFileName = readBuffer;
 
                 wchar_t receivingFilePath[MAX_PATH];
                 Format(receivingFilePath, MAX_PATH, L"%ls\\%ls", g_receiveDirectory, g_receivingFileName);
+
+                if (g_receivingFileHandle != INVALID_HANDLE_VALUE)
+                {
+                    CloseHandle(g_receivingFileHandle);
+                    g_receivingFileHandle = NULL;
+                }
+
                 g_receivingFileHandle = CreateFileW(
                     receivingFilePath,
                     GENERIC_READ | GENERIC_WRITE,
@@ -285,6 +295,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                     CREATE_ALWAYS,
                     0,
                     NULL);
+
                 if (g_receivingFileHandle == INVALID_HANDLE_VALUE)
                 {
                     CannotOpenFileError(receivingFilePath);
@@ -308,16 +319,16 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                 DWORD bytesToRead = g_receivingFileSize - g_receivedBytesTotal;
                 if (bytesToRead > 0)
                 {
-                    if (bytesToRead > 4096)
+                    if (bytesToRead > BINARY_BUFFER_SIZE)
                     {
-                        bytesToRead = 4096;
+                        bytesToRead = BINARY_BUFFER_SIZE;
                     }
                     if (bytesToRead > comStat.cbInQue)
                     {
                         bytesToRead = comStat.cbInQue;
                     }
 
-                    BYTE binBuffer[4096];
+                    BYTE binBuffer[BINARY_BUFFER_SIZE];
                     DWORD bytesRead;
                     if (!ReadFile(g_receivingCOMPortHandle, binBuffer, bytesToRead, &bytesRead, NULL))
                     {
@@ -371,9 +382,16 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 
                 uint64_t readBuffer[1];
                 DWORD bytesRead;
-                if (!ReadFile(g_receivingCOMPortHandle, readBuffer, 8, &bytesRead, NULL))
+                if (!ReadFile(g_receivingCOMPortHandle, readBuffer, sizeof(uint64_t), &bytesRead, NULL))
                 {
                     CannotReadCOMPortError();
+
+                    goto CleanUp;
+                }
+
+                if (bytesRead != sizeof(uint64_t))
+                {
+                    BytesReadMismatchError(sizeof(uint64_t), bytesRead);
 
                     goto CleanUp;
                 }
@@ -400,9 +418,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                 StepProgressBar();
 
                 SetStatusBarText(STATUS_BAR_STATUS_READY);
-
-                // TODO
-                MessageBoxW(NULL, L"Match", L"", MB_OK);
+                EnableStartReceivingButton(TRUE);
 
                 CleanupCOMPort();
 
@@ -413,6 +429,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
     CleanUp:
         CleanupCOMPort();
         SetStatusBarText(STATUS_BAR_STATUS_READY);
+        EnableStartReceivingButton(TRUE);
     }
 
     return 0;
@@ -420,20 +437,30 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 
 BOOL StartReceiving(wchar_t *portName, wchar_t *receiveDir)
 {
+    if (g_receivingCOMPortHandle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(g_receivingCOMPortHandle);
+        g_receivingCOMPortHandle = INVALID_HANDLE_VALUE;
+    }
+
     if (!OpenCOMPort(portName, &g_receivingCOMPortHandle))
     {
         return FALSE;
     }
 
-    g_receiveDirectory = _wcsdup(receiveDir);
-
-    g_currentReceiveStage = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
-
     SetCommMask(g_receivingCOMPortHandle, EV_RXCHAR);
 
-    g_receiverThreadHandle = CreateThread(NULL, 0, ReceiverThread, NULL, 0, NULL);
-
+    g_receiveDirectory = _wcsdup(receiveDir);
+    g_currentReceiveStage = RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE;
     g_isReceiving = TRUE;
+
+    if (g_receiverThreadHandle != INVALID_HANDLE_VALUE)
+    {
+        TerminateThread(g_receiverThreadHandle, 0);
+        CloseHandle(g_receiverThreadHandle);
+        g_receiverThreadHandle = INVALID_HANDLE_VALUE;
+    }
+    g_receiverThreadHandle = CreateThread(NULL, 0, ReceiverThread, NULL, 0, NULL);
 
     return TRUE;
 }
@@ -482,7 +509,7 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
 
     StepProgressBar();
 
-    BYTE binBuffer[4096];
+    BYTE binBuffer[BINARY_BUFFER_SIZE];
     DWORD bytesWrittenTotal = 0;
     DWORD bytesRead;
     while (ReadFile(g_sendingFileHandle, binBuffer, sizeof(binBuffer), &bytesRead, NULL) && bytesRead > 0)
@@ -520,8 +547,8 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
         goto CleanUp;
     }
 
-    uint64_t sendBuffer2[1] = {SFTT_SERIAL_FINAL_SIGNATURE};
-    if (!WriteFile(g_sendingCOMPortHandle, sendBuffer2, sizeof(uint64_t), &bytesWritten, NULL))
+    uint64_t finalSignature = SFTT_SERIAL_FINAL_SIGNATURE;
+    if (!WriteFile(g_sendingCOMPortHandle, &finalSignature, sizeof(uint64_t), &bytesWritten, NULL))
     {
         CannotWriteCOMPortError();
 
@@ -529,7 +556,7 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
     }
     if (bytesWritten != sizeof(uint64_t))
     {
-        BytesWrittenMismatchError(sizeof(sendBuffer2), bytesWritten);
+        BytesWrittenMismatchError(sizeof(uint64_t), bytesWritten);
 
         goto CleanUp;
     }
@@ -598,12 +625,36 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
         return;
     }
 
+    if (g_sendingCOMPortHandle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(g_sendingCOMPortHandle);
+        g_sendingCOMPortHandle = INVALID_HANDLE_VALUE;
+    }
     g_sendingCOMPortHandle = hComPort;
+
+    if (g_sendingFileHandle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(g_sendingFileHandle);
+        g_sendingFileHandle = INVALID_HANDLE_VALUE;
+    }
     g_sendingFileHandle = handleFile;
+
+    if (g_sendingFileName != NULL)
+    {
+        free(g_sendingFileName);
+        g_sendingFileName = NULL;
+    }
     g_sendingFileName = _wcsdup(fileName);
+
     g_sendingFileNameSize = fileNameSize;
     g_sendingFileSize = fileSize.QuadPart;
 
+    if (g_senderThreadHandle != INVALID_HANDLE_VALUE)
+    {
+        TerminateThread(g_senderThreadHandle, 0);
+        CloseHandle(g_senderThreadHandle);
+        g_senderThreadHandle = INVALID_HANDLE_VALUE;
+    }
     g_senderThreadHandle = CreateThread(NULL, 0, SenderThread, NULL, 0, NULL);
 }
 
@@ -614,38 +665,59 @@ void FinaliseSerial(void)
         StopReceiving();
     }
 
-    if (g_senderThreadHandle != INVALID_HANDLE_VALUE)
+    if (g_receiverThreadHandle != INVALID_HANDLE_VALUE)
     {
-        TerminateThread(g_senderThreadHandle, 0);
+        TerminateThread(g_receiverThreadHandle, 0);
+        CloseHandle(g_receiverThreadHandle);
+        g_receiverThreadHandle = INVALID_HANDLE_VALUE;
     }
 
-    if (g_sendingCOMPortHandle != INVALID_HANDLE_VALUE)
+    if (g_receivingCOMPortHandle != INVALID_HANDLE_VALUE)
     {
-        CloseHandle(g_sendingCOMPortHandle);
-    }
-
-    if (g_sendingFileHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_sendingFileHandle);
+        CloseHandle(g_receivingCOMPortHandle);
+        g_receivingCOMPortHandle = INVALID_HANDLE_VALUE;
     }
 
     if (g_receivingFileHandle != INVALID_HANDLE_VALUE)
     {
         CloseHandle(g_receivingFileHandle);
+        g_receivingFileHandle = INVALID_HANDLE_VALUE;
     }
 
     if (g_receiveDirectory != NULL)
     {
         free(g_receiveDirectory);
-    }
-
-    if (g_sendingFileName != NULL)
-    {
-        free(g_sendingFileName);
+        g_receiveDirectory = NULL;
     }
 
     if (g_receivingFileName != NULL)
     {
         free(g_receivingFileName);
+        g_receivingFileName = NULL;
+    }
+
+    if (g_senderThreadHandle != INVALID_HANDLE_VALUE)
+    {
+        TerminateThread(g_senderThreadHandle, 0);
+        CloseHandle(g_senderThreadHandle);
+        g_senderThreadHandle = INVALID_HANDLE_VALUE;
+    }
+
+    if (g_sendingCOMPortHandle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(g_sendingCOMPortHandle);
+        g_sendingCOMPortHandle = INVALID_HANDLE_VALUE;
+    }
+
+    if (g_sendingFileHandle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(g_sendingFileHandle);
+        g_sendingFileHandle = INVALID_HANDLE_VALUE;
+    }
+
+    if (g_sendingFileName != NULL)
+    {
+        free(g_sendingFileName);
+        g_sendingFileName = NULL;
     }
 }

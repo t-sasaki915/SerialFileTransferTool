@@ -13,6 +13,7 @@
 #define WM_SFTT_SHOW_ERROR_DIALOG WM_USER + 1
 #define WM_SFTT_UI_START_SENDING WM_USER + 2
 #define WM_SFTT_UI_FINISH_SENDING WM_USER + 3
+#define WM_SFTT_ENABLE_START_RECEIVING_BUTTON WM_USER + 4
 
 #define UI_FONT_NAME L"Tahoma"
 #define UI_FONT_SIZE 15
@@ -70,7 +71,7 @@
 #define RECEIVE_DIRECTORY_BROWSE_BUTTON_WIDTH 70
 #define RECEIVE_DIRECTORY_BROWSE_BUTTON_HEIGHT 20
 #define RECEIVE_DIRECTORY_BROWSE_BUTTON_ID 103
-#define RECEIVE_DIRECTORY_BROWSE_DIALOG_TITLE L"Please select the directory for which received data will be stored"
+#define RECEIVE_DIRECTORY_BROWSE_DIALOG_TITLE L"Please select the directory in which received data will be stored"
 
 #define START_RECEIVING_BUTTON_LABEL_START L"Start Receiving"
 #define START_RECEIVING_BUTTON_LABEL_STOP L"Stop Receiving"
@@ -396,6 +397,11 @@ void UIFinishSending(void)
     SendMessageW(g_mainWindow, WM_SFTT_UI_FINISH_SENDING, (WPARAM)0, (LPARAM)0);
 }
 
+void EnableStartReceivingButton(BOOL enable)
+{
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_START_RECEIVING_BUTTON, (WPARAM)enable, (LPARAM)0);
+}
+
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (wMsg)
@@ -418,6 +424,13 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
         case WM_SFTT_UI_FINISH_SENDING: {
             EnableSetModeControls(TRUE);
             SetStatusBarText(STATUS_BAR_STATUS_READY);
+
+            return 0;
+        }
+        case WM_SFTT_ENABLE_START_RECEIVING_BUTTON: {
+            BOOL enable = (BOOL)wParam;
+
+            EnableWindow(g_startReceivingButton, enable);
 
             return 0;
         }
