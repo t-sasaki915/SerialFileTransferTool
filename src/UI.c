@@ -418,14 +418,8 @@ void EnableStartReceivingButton(BOOL enable)
 
 void ShowVersion(void)
 {
-    wchar_t versionText[200];
-    Format(
-        versionText,
-        200,
-        L"SerialFileTransferTool v%ls\n\n%ls\n\nGitHub: %ls",
-        SFTT_VERSION,
-        SFTT_LICENCE,
-        SFTT_GITHUB);
+    wchar_t *versionText =
+        L"SerialFileTransferTool v" SFTT_VERSION "\r\n\r\n" SFTT_LICENCE "\r\n\r\nGitHub: " SFTT_GITHUB;
 
     MessageBoxW(g_mainWindow, versionText, VERSION_WINDOW_TITLE, MB_ICONINFORMATION | MB_OK);
 }
