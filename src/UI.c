@@ -109,25 +109,25 @@
 #define STATUS_BAR_TEXT_SENDING L"Sending"
 #define STATUS_BAR_TEXT_RECEIVING L"Receiving"
 
-HINSTANCE g_mainInstance;
+static HINSTANCE g_mainInstance;
 
-HFONT g_uiFont;
+static HFONT g_uiFont;
 
-HWND g_mainWindow;
-HWND g_mainWindowStatusBar;
-HWND g_mainWindowStatusBarProgressBar;
-HWND g_portSelectComboBox;
-HWND g_portSelectUpdateButton;
-HWND g_modeChangeButtonSendMode;
-HWND g_modeChangeButtonReceiveMode;
-HWND g_startReceivingButton;
-HWND g_receiveDirectoryTextBox;
-HWND g_receiveDirectoryBrowseButton;
-HWND g_sendFilePathTextBox;
-HWND g_sendFilePathBrowseButton;
-HWND g_sendFileButton;
+static HWND g_mainWindow;
+static HWND g_mainWindowStatusBar;
+static HWND g_mainWindowStatusBarProgressBar;
+static HWND g_portSelectComboBox;
+static HWND g_portSelectUpdateButton;
+static HWND g_modeChangeButtonSendMode;
+static HWND g_modeChangeButtonReceiveMode;
+static HWND g_startReceivingButton;
+static HWND g_receiveDirectoryTextBox;
+static HWND g_receiveDirectoryBrowseButton;
+static HWND g_sendFilePathTextBox;
+static HWND g_sendFilePathBrowseButton;
+static HWND g_sendFileButton;
 
-ApplicationMode g_currentApplicationMode;
+static ApplicationMode g_currentApplicationMode;
 
 void InitialiseUI(void)
 {

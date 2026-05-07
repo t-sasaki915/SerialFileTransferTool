@@ -2,7 +2,7 @@
 
 typedef int (*PVSWPRINTF_S)(wchar_t *, size_t, const wchar_t *, va_list);
 
-PVSWPRINTF_S g_formatterFunc = NULL;
+static PVSWPRINTF_S g_formatterFunc = NULL;
 
 void InitialiseFormatFunction(void)
 {

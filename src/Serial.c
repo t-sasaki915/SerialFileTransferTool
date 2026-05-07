@@ -21,27 +21,27 @@ typedef enum
 
 typedef BOOL(WINAPI *PCANCELIOEX)(HANDLE, LPOVERLAPPED);
 
-ReceiveStage g_currentReceiveStage;
-wchar_t *g_receiveDirectory;
-uint64_t g_receivingFileSize;
-uint64_t g_receivingFileNameSize;
-uint64_t g_receivedBytesTotal;
-wchar_t *g_receivingFileName;
-HANDLE g_receivingCOMPortHandle;
-HANDLE g_receivingFileHandle;
-HANDLE g_receiverThreadHandle;
-volatile BOOL g_isReceiving = FALSE;
+static ReceiveStage g_currentReceiveStage;
+static wchar_t *g_receiveDirectory;
+static uint64_t g_receivingFileSize;
+static uint64_t g_receivingFileNameSize;
+static uint64_t g_receivedBytesTotal;
+static wchar_t *g_receivingFileName;
+static HANDLE g_receivingCOMPortHandle;
+static HANDLE g_receivingFileHandle;
+static HANDLE g_receiverThreadHandle;
+static volatile BOOL g_isReceiving = FALSE;
 
-HANDLE g_senderThreadHandle;
-HANDLE g_sendingCOMPortHandle;
-HANDLE g_sendingFileHandle;
-wchar_t *g_sendingFileName;
-size_t g_sendingFileSize;
-size_t g_sendingFileNameSize;
+static HANDLE g_senderThreadHandle;
+static HANDLE g_sendingCOMPortHandle;
+static HANDLE g_sendingFileHandle;
+static wchar_t *g_sendingFileName;
+static size_t g_sendingFileSize;
+static size_t g_sendingFileNameSize;
 
-DCB g_defaultDCB;
+static DCB g_defaultDCB;
 
-PCANCELIOEX g_cancelIOExFunc;
+static PCANCELIOEX g_cancelIOExFunc;
 
 void InitialiseSerial(void)
 {
