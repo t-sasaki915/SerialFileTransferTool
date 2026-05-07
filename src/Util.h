@@ -3,7 +3,7 @@
 
 #include <windows.h>
 
-void InitialiseUtilFunctions(void);
+void InitialiseFormatFunction(void);
 
 wchar_t *GetFileName(wchar_t *filePath);
 

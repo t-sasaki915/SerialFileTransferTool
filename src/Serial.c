@@ -181,8 +181,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 {
     (void)lpParam;
 
-    OVERLAPPED ov;
-    ZeroMemory(&ov, sizeof(ov));
+    OVERLAPPED ov = {0};
     ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
 
     while (g_isReceiving)
@@ -364,7 +363,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                     }
 
                     g_receivedBytesTotal += bytesRead;
-                    AddStepToProgressBar(bytesRead);
+                    AddStepsToProgressBar(bytesRead);
                 }
 
                 if (g_receivedBytesTotal >= g_receivingFileSize)
@@ -532,7 +531,7 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
                 continue;
             }
 
-            AddStepToProgressBar(bytesWrittenThisTime);
+            AddStepsToProgressBar(bytesWrittenThisTime);
 
             offset += bytesWrittenThisTime;
         }

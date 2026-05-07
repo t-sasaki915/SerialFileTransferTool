@@ -198,7 +198,7 @@ void SetApplicationMode(ApplicationMode appMode)
 {
     g_currentApplicationMode = appMode;
 
-    LPCWSTR newMainWindowTitle = L"";
+    wchar_t *newMainWindowTitle = L"";
     switch (appMode)
     {
         case APPLICATION_MODE_SEND_MODE: {
@@ -213,7 +213,7 @@ void SetApplicationMode(ApplicationMode appMode)
         }
     }
 
-    SendMessageW(g_mainWindow, WM_SETTEXT, (WPARAM)0, (LPARAM)newMainWindowTitle);
+    SetWindowTextW(g_mainWindow, newMainWindowTitle);
 
     EnableWindow(g_modeChangeButtonSendMode, (appMode != APPLICATION_MODE_SEND_MODE));
     EnableWindow(g_modeChangeButtonReceiveMode, (appMode != APPLICATION_MODE_RECEIVE_MODE));
@@ -247,8 +247,7 @@ BOOL GetSelectedPortName(wchar_t **resultPtr)
 
 BOOL BrowseFileToSend(wchar_t *resultPtr)
 {
-    OPENFILENAMEW ofn;
-    ZeroMemory(&ofn, sizeof(ofn));
+    OPENFILENAMEW ofn = {0};
     ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = g_mainWindow;
     ofn.lpstrFile = resultPtr;
@@ -262,8 +261,7 @@ BOOL BrowseFileToSend(wchar_t *resultPtr)
 
 BOOL BrowseReceiveDirectory(wchar_t *resultPtr)
 {
-    BROWSEINFOW bi;
-    ZeroMemory(&bi, sizeof(bi));
+    BROWSEINFOW bi = {0};
     bi.hwndOwner = g_mainWindow;
     bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_USENEWUI;
     bi.lpszTitle = RECEIVE_DIRECTORY_BROWSE_DIALOG_TITLE;
@@ -317,8 +315,7 @@ void EnableSetModeControls(BOOL enable)
 
 void RequestErrorDialog(wchar_t *msg)
 {
-    wchar_t *persistentMsg = _wcsdup(msg);
-    SendMessageW(g_mainWindow, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)persistentMsg, (LPARAM)0);
+    SendMessageW(g_mainWindow, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)_wcsdup(msg), (LPARAM)0);
 }
 
 void UIStopReceiving(void)
@@ -376,7 +373,7 @@ void StepProgressBar(void)
     SendMessageW(g_mainWindowStatusBarProgressBar, PBM_STEPIT, (WPARAM)0, (LPARAM)0);
 }
 
-void AddStepToProgressBar(uint32_t steps)
+void AddStepsToProgressBar(uint32_t steps)
 {
     uint32_t current = (uint32_t)SendMessageW(g_mainWindowStatusBarProgressBar, PBM_GETPOS, (WPARAM)0, (LPARAM)0);
     SendMessageW(g_mainWindowStatusBarProgressBar, PBM_SETPOS, (WPARAM)current + steps, (LPARAM)0);
@@ -614,8 +611,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
 void ShowMainWindow(void)
 {
-    WNDCLASSEXW mainWindowClass;
-    ZeroMemory(&mainWindowClass, sizeof(mainWindowClass));
+    WNDCLASSEXW mainWindowClass = {0};
     mainWindowClass.cbSize = sizeof(mainWindowClass);
     mainWindowClass.lpszClassName = MAIN_WINDOW_CLASS_NAME;
     mainWindowClass.hInstance = g_mainInstance;

@@ -6,7 +6,7 @@
 
 int main(void)
 {
-    InitialiseUtilFunctions();
+    InitialiseFormatFunction();
     InitialiseSerial();
     InitialiseUI();
 

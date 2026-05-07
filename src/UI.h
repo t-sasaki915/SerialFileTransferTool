@@ -51,7 +51,7 @@ void EnableSetModeControls(BOOL enable);
 
 void StepProgressBar(void);
 
-void AddStepToProgressBar(uint32_t steps);
+void AddStepsToProgressBar(uint32_t steps);
 
 void ResetProgressBar(void);
 
