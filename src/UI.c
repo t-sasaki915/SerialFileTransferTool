@@ -569,8 +569,8 @@ void ShowBaudRateSettingWindow(void)
         g_mainInstance,
         NULL);
 
-    wchar_t textBoxInitContent[30];
-    Format(textBoxInitContent, 30, L"%lu", GetCurrentBaudRate());
+    wchar_t textBoxInitContent[7];
+    Format(textBoxInitContent, 7, L"%lu", GetCurrentBaudRate());
 
     HWND baudRateTextBox = CreateWindowW(
         L"EDIT",
