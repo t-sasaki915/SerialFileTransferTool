@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #define COM_PORT_TRY_MAX 20
+#define BAUD_RATE_MAX 921600
 
 typedef struct
 {
@@ -12,6 +13,10 @@ typedef struct
 } AvailablePort;
 
 void InitialiseSerial(void);
+
+DWORD GetCurrentBaudRate(void);
+
+void SetBaudRate(DWORD newBaudRate);
 
 void GetAvailablePorts(AvailablePort *resultPtr, int *numberOfAvailablePorts);
 

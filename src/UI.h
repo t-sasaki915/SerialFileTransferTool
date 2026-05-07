@@ -61,6 +61,8 @@ void UIFinishSending(void);
 
 void EnableStartReceivingButton(BOOL enable);
 
+void EnableBaudRateSettingButton(BOOL enable);
+
 void FinaliseUI(void);
 
 #endif

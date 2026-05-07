@@ -39,23 +39,23 @@ static wchar_t *g_sendingFileName;
 static size_t g_sendingFileSize;
 static size_t g_sendingFileNameSize;
 
-static DCB g_defaultDCB;
+static DCB g_currentDCB;
 
 static PCANCELIOEX g_cancelIOExFunc;
 
 void InitialiseSerial(void)
 {
-    ZeroMemory(&g_defaultDCB, sizeof(g_defaultDCB));
-    g_defaultDCB.BaudRate = CBR_9600;
-    g_defaultDCB.ByteSize = 8;
-    g_defaultDCB.Parity = NOPARITY;
-    g_defaultDCB.StopBits = ONESTOPBIT;
-    g_defaultDCB.fBinary = TRUE;
-    g_defaultDCB.fOutX = FALSE;
-    g_defaultDCB.fInX = FALSE;
-    g_defaultDCB.fNull = FALSE;
-    g_defaultDCB.fOutxCtsFlow = FALSE;
-    g_defaultDCB.fRtsControl = RTS_CONTROL_ENABLE;
+    ZeroMemory(&g_currentDCB, sizeof(g_currentDCB));
+    g_currentDCB.BaudRate = 115200;
+    g_currentDCB.ByteSize = 8;
+    g_currentDCB.Parity = NOPARITY;
+    g_currentDCB.StopBits = ONESTOPBIT;
+    g_currentDCB.fBinary = TRUE;
+    g_currentDCB.fOutX = FALSE;
+    g_currentDCB.fInX = FALSE;
+    g_currentDCB.fNull = FALSE;
+    g_currentDCB.fOutxCtsFlow = FALSE;
+    g_currentDCB.fRtsControl = RTS_CONTROL_ENABLE;
 
     union {
         FARPROC addr;
@@ -76,6 +76,16 @@ BOOL IsReceiving(void)
     return g_isReceiving;
 }
 
+DWORD GetCurrentBaudRate(void)
+{
+    return g_currentDCB.BaudRate;
+}
+
+void SetBaudRate(DWORD newBaudRate)
+{
+    g_currentDCB.BaudRate = newBaudRate;
+}
+
 BOOL OpenCOMPort(LPCWSTR portName, HANDLE *resultPtr)
 {
     HANDLE hComPort = CreateFileW(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
@@ -84,7 +94,7 @@ BOOL OpenCOMPort(LPCWSTR portName, HANDLE *resultPtr)
         return FALSE;
     }
 
-    if (!SetCommState(hComPort, &g_defaultDCB))
+    if (!SetCommState(hComPort, &g_currentDCB))
     {
         return FALSE;
     }
@@ -580,6 +590,7 @@ CleanUp:
     }
 
     UIFinishSending();
+    EnableBaudRateSettingButton(TRUE);
 
     return 0;
 }
@@ -587,6 +598,7 @@ CleanUp:
 void SendFile(wchar_t *portName, wchar_t *filePath)
 {
     UIStartSending();
+    EnableBaudRateSettingButton(FALSE);
 
     HANDLE handleFile =
         CreateFileW(filePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -595,6 +607,7 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
         CannotOpenFileError(filePath);
 
         UIFinishSending();
+        EnableBaudRateSettingButton(TRUE);
         return;
     }
 
@@ -607,6 +620,7 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
         CloseHandle(handleFile);
 
         UIFinishSending();
+        EnableBaudRateSettingButton(TRUE);
         return;
     }
 
@@ -621,6 +635,7 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
         CloseHandle(handleFile);
 
         UIFinishSending();
+        EnableBaudRateSettingButton(TRUE);
         return;
     }
 

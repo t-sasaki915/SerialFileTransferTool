@@ -121,10 +121,34 @@
 #define FILE_MENU_EXIT_LABEL L"Exit (&X)"
 #define FILE_MENU_EXIT_ID 108
 
-#define SERIAL_SPEED_MENU_LABEL L"Speed (&S)"
+#define BAUD_RATE_MENU_LABEL L"Baud Rate (&B)"
+#define BAUD_RATE_MENU_ID 109
 
-#define SERIAL_SPEED_MENU_TEST_LABEL L"Test"
-#define SERIAL_SPEED_MENU_TEST_ID 109
+#define BAUD_RATE_SETTING_WINDOW_CLASS_NAME L"SFTT_BAUD_RATE_SETTING_WINDOW_CLASS"
+#define BAUD_RATE_SETTING_WINDOW_TITLE L"Baud Rate Setting"
+#define BAUD_RATE_SETTING_WINDOW_WIDTH 232
+#define BAUD_RATE_SETTING_WINDOW_HEIGHT 89
+
+#define BAUD_RATE_LABEL_TEXT L"Baud Rate: "
+#define BAUD_RATE_LABEL_TEXT_LENGTH 11
+#define BAUD_RATE_LABEL_X 5
+#define BAUD_RATE_LABEL_Y 7
+
+#define BAUD_RATE_TEXTBOX_X 72
+#define BAUD_RATE_TEXTBOX_Y 5
+#define BAUD_RATE_TEXTBOX_WIDTH 148
+#define BAUD_RATE_TEXTBOX_HEIGHT 20
+#define BAUD_RATE_TEXTBOX_ID 110
+
+#define BAUD_RATE_OK_BUTTON_LABEL L"OK"
+#define BAUD_RATE_OK_BUTTON_X 77
+#define BAUD_RATE_OK_BUTTON_Y 35
+#define BAUD_RATE_OK_BUTTON_WIDTH 70
+#define BAUD_RATE_OK_BUTTON_HEIGHT 20
+#define BAUD_RATE_OK_BUTTON_ID 111
+
+#define PLEASE_ENTER_BAUD_RATE_MSG L"Please enter a baud rate."
+#define BAUD_RATE_OUT_OF_RANGE_MSG L"The baud rate is out of range."
 
 static HINSTANCE g_mainInstance;
 
@@ -143,6 +167,10 @@ static HWND g_receiveDirectoryBrowseButton;
 static HWND g_sendFilePathTextBox;
 static HWND g_sendFilePathBrowseButton;
 static HWND g_sendFileButton;
+
+static HMENU g_mainWindowMenu;
+
+static HWND g_baudRateSettingWindow;
 
 static ApplicationMode g_currentApplicationMode;
 
@@ -424,6 +452,157 @@ void ShowVersion(void)
     MessageBoxW(g_mainWindow, versionText, VERSION_WINDOW_TITLE, MB_ICONINFORMATION | MB_OK);
 }
 
+void EnableBaudRateSettingButton(BOOL enable)
+{
+    EnableMenuItem(g_mainWindowMenu, BAUD_RATE_MENU_ID, MF_BYCOMMAND | (enable ? MF_ENABLED : MF_GRAYED));
+    DrawMenuBar(g_mainWindow);
+}
+
+LRESULT CALLBACK BaudRateSettingWindowCallback(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (wMsg)
+    {
+        case WM_DESTROY: {
+            EnableWindow(g_mainWindow, TRUE);
+            SetForegroundWindow(g_mainWindow);
+
+            return 0;
+        }
+        case WM_PAINT: {
+            HDC hdc;
+            PAINTSTRUCT ps;
+
+            hdc = BeginPaint(hwnd, &ps);
+
+            HFONT oldFont = (HFONT)SelectObject(hdc, g_uiFont);
+
+            TextOutW(hdc, BAUD_RATE_LABEL_X, BAUD_RATE_LABEL_Y, BAUD_RATE_LABEL_TEXT, BAUD_RATE_LABEL_TEXT_LENGTH);
+
+            SelectObject(hdc, oldFont);
+
+            EndPaint(hwnd, &ps);
+
+            return 0;
+        }
+        case WM_ERASEBKGND: {
+            HDC hdc = (HDC)wParam;
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+
+            HBRUSH backgroundBrush = GetSysColorBrush(COLOR_WINDOW);
+            FillRect(hdc, &rect, backgroundBrush);
+
+            return 1;
+        }
+        case WM_COMMAND: {
+            switch (LOWORD(wParam))
+            {
+                case BAUD_RATE_OK_BUTTON_ID: {
+                    BOOL result;
+                    UINT newBaudRate = GetDlgItemInt(g_baudRateSettingWindow, BAUD_RATE_TEXTBOX_ID, &result, FALSE);
+
+                    if (!result)
+                    {
+                        MessageBoxW(
+                            g_baudRateSettingWindow,
+                            PLEASE_ENTER_BAUD_RATE_MSG,
+                            BAUD_RATE_SETTING_WINDOW_TITLE,
+                            MB_ICONERROR | MB_OK);
+
+                        return 0;
+                    }
+
+                    if (newBaudRate <= 0 || newBaudRate > BAUD_RATE_MAX)
+                    {
+                        MessageBoxW(
+                            g_baudRateSettingWindow,
+                            BAUD_RATE_OUT_OF_RANGE_MSG,
+                            BAUD_RATE_SETTING_WINDOW_TITLE,
+                            MB_ICONERROR | MB_OK);
+
+                        return 0;
+                    }
+
+                    SetBaudRate((DWORD)newBaudRate);
+
+                    PostMessageW(g_baudRateSettingWindow, WM_CLOSE, (WPARAM)0, (LPARAM)0);
+
+                    return 0;
+                }
+                default: {
+                    return DefWindowProcW(hwnd, wMsg, wParam, lParam);
+                }
+            }
+        }
+        default: {
+            return DefWindowProcW(hwnd, wMsg, wParam, lParam);
+        }
+    }
+}
+
+void ShowBaudRateSettingWindow(void)
+{
+    WNDCLASSEXW wndClass = {0};
+    wndClass.cbSize = sizeof(wndClass);
+    wndClass.lpszClassName = BAUD_RATE_SETTING_WINDOW_CLASS_NAME;
+    wndClass.hInstance = g_mainInstance;
+    wndClass.style = CS_VREDRAW | CS_HREDRAW;
+    wndClass.lpfnWndProc = BaudRateSettingWindowCallback;
+
+    RegisterClassExW(&wndClass);
+
+    EnableWindow(g_mainWindow, FALSE);
+
+    g_baudRateSettingWindow = CreateWindowW(
+        BAUD_RATE_SETTING_WINDOW_CLASS_NAME,
+        BAUD_RATE_SETTING_WINDOW_TITLE,
+        WS_CAPTION | WS_SYSMENU | WS_POPUPWINDOW | WS_DLGFRAME,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        BAUD_RATE_SETTING_WINDOW_WIDTH,
+        BAUD_RATE_SETTING_WINDOW_HEIGHT,
+        NULL,
+        NULL,
+        g_mainInstance,
+        NULL);
+
+    wchar_t textBoxInitContent[30];
+    Format(textBoxInitContent, 30, L"%lu", GetCurrentBaudRate());
+
+    HWND baudRateTextBox = CreateWindowW(
+        L"EDIT",
+        textBoxInitContent,
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_NUMBER,
+        BAUD_RATE_TEXTBOX_X,
+        BAUD_RATE_TEXTBOX_Y,
+        BAUD_RATE_TEXTBOX_WIDTH,
+        BAUD_RATE_TEXTBOX_HEIGHT,
+        g_baudRateSettingWindow,
+        (HMENU)BAUD_RATE_TEXTBOX_ID,
+        g_mainInstance,
+        NULL);
+
+    SendMessageW(baudRateTextBox, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
+
+    HWND baudRateOKButton = CreateWindowW(
+        L"BUTTON",
+        BAUD_RATE_OK_BUTTON_LABEL,
+        WS_CHILD | WS_VISIBLE,
+        BAUD_RATE_OK_BUTTON_X,
+        BAUD_RATE_OK_BUTTON_Y,
+        BAUD_RATE_OK_BUTTON_WIDTH,
+        BAUD_RATE_OK_BUTTON_HEIGHT,
+        g_baudRateSettingWindow,
+        (HMENU)BAUD_RATE_OK_BUTTON_ID,
+        g_mainInstance,
+        NULL);
+
+    SendMessageW(baudRateOKButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
+
+    ShowWindow(g_baudRateSettingWindow, SW_SHOWNORMAL);
+    UpdateWindow(g_baudRateSettingWindow);
+}
+
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (wMsg)
@@ -534,6 +713,11 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
                     return 0;
                 }
+                case BAUD_RATE_MENU_ID: {
+                    ShowBaudRateSettingWindow();
+
+                    return 0;
+                }
                 case PORT_SELECT_UPDATE_BUTTON_ID: {
                     UpdatePortSelectList();
 
@@ -554,6 +738,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     {
                         StopReceiving();
                         UIStopReceiving();
+                        EnableBaudRateSettingButton(TRUE);
                     }
                     else
                     {
@@ -577,11 +762,13 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                         if (StartReceiving(selectedPortName, receiveDir))
                         {
                             UIStartReceiving();
+                            EnableBaudRateSettingButton(FALSE);
                         }
                         else
                         {
                             StopReceiving();
                             UIStopReceiving();
+                            EnableBaudRateSettingButton(TRUE);
 
                             CannotOpenCOMPortError(selectedPortName);
 
@@ -655,18 +842,15 @@ void ShowMainWindow(void)
 
     RegisterClassExW(&mainWindowClass);
 
-    HMENU mainWindowMenu = CreateMenu();
+    g_mainWindowMenu = CreateMenu();
 
     HMENU fileMenu = CreateMenu();
     AppendMenuW(fileMenu, MF_STRING, (UINT_PTR)FILE_MENU_VERSION_ID, FILE_MENU_VERSION_LABEL);
     AppendMenuW(fileMenu, MF_SEPARATOR, (UINT_PTR)0, NULL);
     AppendMenuW(fileMenu, MF_STRING, (UINT_PTR)FILE_MENU_EXIT_ID, FILE_MENU_EXIT_LABEL);
 
-    HMENU serialSpeedMenu = CreateMenu();
-    AppendMenuW(serialSpeedMenu, MF_STRING, (UINT_PTR)SERIAL_SPEED_MENU_TEST_ID, SERIAL_SPEED_MENU_TEST_LABEL);
-
-    AppendMenuW(mainWindowMenu, MF_POPUP, (UINT_PTR)fileMenu, FILE_MENU_LABEL);
-    AppendMenuW(mainWindowMenu, MF_POPUP, (UINT_PTR)serialSpeedMenu, SERIAL_SPEED_MENU_LABEL);
+    AppendMenuW(g_mainWindowMenu, MF_POPUP, (UINT_PTR)fileMenu, FILE_MENU_LABEL);
+    AppendMenuW(g_mainWindowMenu, MF_STRING, (UINT_PTR)BAUD_RATE_MENU_ID, BAUD_RATE_MENU_LABEL);
 
     g_mainWindow = CreateWindowW(
         MAIN_WINDOW_CLASS_NAME,
@@ -677,7 +861,7 @@ void ShowMainWindow(void)
         MAIN_WINDOW_WIDTH,
         MAIN_WINDOW_HEIGHT,
         NULL,
-        mainWindowMenu,
+        g_mainWindowMenu,
         g_mainInstance,
         NULL);
 
