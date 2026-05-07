@@ -553,12 +553,15 @@ void ShowBaudRateSettingWindow(void)
 
     EnableWindow(g_mainWindow, FALSE);
 
+    RECT mainWindowRect;
+    GetWindowRect(g_mainWindow, &mainWindowRect);
+
     g_baudRateSettingWindow = CreateWindowW(
         BAUD_RATE_SETTING_WINDOW_CLASS_NAME,
         BAUD_RATE_SETTING_WINDOW_TITLE,
         WS_CAPTION | WS_SYSMENU | WS_POPUPWINDOW | WS_DLGFRAME,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
+        mainWindowRect.left,
+        mainWindowRect.top,
         BAUD_RATE_SETTING_WINDOW_WIDTH,
         BAUD_RATE_SETTING_WINDOW_HEIGHT,
         NULL,
