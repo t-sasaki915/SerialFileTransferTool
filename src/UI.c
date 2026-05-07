@@ -9,6 +9,8 @@
 #include "Error.h"
 #include "Serial.h"
 #include "UI.h"
+#include "Util.h"
+#include "Version.h"
 
 #define WM_SFTT_SHOW_ERROR_DIALOG WM_USER + 1
 #define WM_SFTT_UI_START_SENDING WM_USER + 2
@@ -18,11 +20,13 @@
 #define UI_FONT_NAME L"Tahoma"
 #define UI_FONT_SIZE 15
 
+#define VERSION_WINDOW_TITLE L"About SFTT"
+
 #define MAIN_WINDOW_CLASS_NAME L"SFTT_MAINWINDOW_CLASS"
 #define MAIN_WINDOW_TITLE_SEND_MODE L"SFTT - Send"
 #define MAIN_WINDOW_TITLE_RECEIVE_MODE L"SFTT - Receive"
 #define MAIN_WINDOW_WIDTH 274
-#define MAIN_WINDOW_HEIGHT 197
+#define MAIN_WINDOW_HEIGHT 217
 
 #define PORT_SELECT_LABEL_TEXT L"Port: "
 #define PORT_SELECT_LABEL_TEXT_LENGTH 6
@@ -108,6 +112,19 @@
 #define STATUS_BAR_TEXT_READY L"Ready"
 #define STATUS_BAR_TEXT_SENDING L"Sending"
 #define STATUS_BAR_TEXT_RECEIVING L"Receiving"
+
+#define FILE_MENU_LABEL L"File (&F)"
+
+#define FILE_MENU_VERSION_LABEL L"Version (&V)"
+#define FILE_MENU_VERSION_ID 107
+
+#define FILE_MENU_EXIT_LABEL L"Exit (&X)"
+#define FILE_MENU_EXIT_ID 108
+
+#define SERIAL_SPEED_MENU_LABEL L"Speed (&S)"
+
+#define SERIAL_SPEED_MENU_TEST_LABEL L"Test"
+#define SERIAL_SPEED_MENU_TEST_ID 109
 
 static HINSTANCE g_mainInstance;
 
@@ -399,6 +416,20 @@ void EnableStartReceivingButton(BOOL enable)
     SendMessageW(g_mainWindow, WM_SFTT_ENABLE_START_RECEIVING_BUTTON, (WPARAM)enable, (LPARAM)0);
 }
 
+void ShowVersion(void)
+{
+    wchar_t versionText[200];
+    Format(
+        versionText,
+        200,
+        L"SerialFileTransferTool v%ls\n\n%ls\n\nGitHub: %ls",
+        SFTT_VERSION,
+        SFTT_LICENCE,
+        SFTT_GITHUB);
+
+    MessageBoxW(g_mainWindow, versionText, VERSION_WINDOW_TITLE, MB_ICONINFORMATION | MB_OK);
+}
+
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (wMsg)
@@ -499,6 +530,16 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
         case WM_COMMAND: {
             switch (LOWORD(wParam))
             {
+                case FILE_MENU_VERSION_ID: {
+                    ShowVersion();
+
+                    return 0;
+                }
+                case FILE_MENU_EXIT_ID: {
+                    PostQuitMessage(0);
+
+                    return 0;
+                }
                 case PORT_SELECT_UPDATE_BUTTON_ID: {
                     UpdatePortSelectList();
 
@@ -620,6 +661,19 @@ void ShowMainWindow(void)
 
     RegisterClassExW(&mainWindowClass);
 
+    HMENU mainWindowMenu = CreateMenu();
+
+    HMENU fileMenu = CreateMenu();
+    AppendMenuW(fileMenu, MF_STRING, (UINT_PTR)FILE_MENU_VERSION_ID, FILE_MENU_VERSION_LABEL);
+    AppendMenuW(fileMenu, MF_SEPARATOR, (UINT_PTR)0, NULL);
+    AppendMenuW(fileMenu, MF_STRING, (UINT_PTR)FILE_MENU_EXIT_ID, FILE_MENU_EXIT_LABEL);
+
+    HMENU serialSpeedMenu = CreateMenu();
+    AppendMenuW(serialSpeedMenu, MF_STRING, (UINT_PTR)SERIAL_SPEED_MENU_TEST_ID, SERIAL_SPEED_MENU_TEST_LABEL);
+
+    AppendMenuW(mainWindowMenu, MF_POPUP, (UINT_PTR)fileMenu, FILE_MENU_LABEL);
+    AppendMenuW(mainWindowMenu, MF_POPUP, (UINT_PTR)serialSpeedMenu, SERIAL_SPEED_MENU_LABEL);
+
     g_mainWindow = CreateWindowW(
         MAIN_WINDOW_CLASS_NAME,
         NULL,
@@ -629,7 +683,7 @@ void ShowMainWindow(void)
         MAIN_WINDOW_WIDTH,
         MAIN_WINDOW_HEIGHT,
         NULL,
-        NULL,
+        mainWindowMenu,
         g_mainInstance,
         NULL);
 
