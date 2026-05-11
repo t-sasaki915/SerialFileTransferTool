@@ -1,7 +1,7 @@
 CC = gcc
 STRIP = strip
 
-# The '-Wpedantic' option may have to be removed in older environments such as Windows 2000.
+# The '-Wpedantic' option may have to be removed in older compilers.
 CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -mwindows -Os
 LDFLAGS = -static -static-libgcc -lcomctl32 -lgdi32 -lcomdlg32 -lole32
 
