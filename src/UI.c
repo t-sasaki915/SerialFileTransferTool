@@ -28,7 +28,7 @@
 #define MAIN_WINDOW_WIDTH 274
 #define MAIN_WINDOW_HEIGHT 217
 
-#define PORT_SELECT_LABEL_TEXT L"Port: "
+#define PORT_SELECT_LABEL_TEXT L"Port:"
 #define PORT_SELECT_LABEL_TEXT_LENGTH 6
 #define PORT_SELECT_LABEL_X 5
 #define PORT_SELECT_LABEL_Y 7
@@ -59,9 +59,9 @@
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_HEIGHT 40
 #define MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID 102
 
-#define RECEIVE_DIRECTORY_LABEL_TEXT L"Dir: "
+#define RECEIVE_DIRECTORY_LABEL_TEXT L"Dest:"
 #define RECEIVE_DIRECTORY_LABEL_TEXT_LENGTH 5
-#define RECEIVE_DIRECTORY_LABEL_X 10
+#define RECEIVE_DIRECTORY_LABEL_X 3
 #define RECEIVE_DIRECTORY_LABEL_Y 79
 
 #define RECEIVE_DIRECTORY_TEXTBOX_X 35
@@ -85,7 +85,7 @@
 #define START_RECEIVING_BUTTON_HEIGHT 40
 #define START_RECEIVING_BUTTON_ID 104
 
-#define FILE_TO_SEND_LABEL_TEXT L"File: "
+#define FILE_TO_SEND_LABEL_TEXT L"File:"
 #define FILE_TO_SEND_LABEL_TEXT_LENGTH 6
 #define FILE_TO_SEND_LABEL_X 8
 #define FILE_TO_SEND_LABEL_Y 79
@@ -129,7 +129,7 @@
 #define BAUD_RATE_SETTING_WINDOW_WIDTH 232
 #define BAUD_RATE_SETTING_WINDOW_HEIGHT 89
 
-#define BAUD_RATE_LABEL_TEXT L"Baud Rate: "
+#define BAUD_RATE_LABEL_TEXT L"Baud Rate:"
 #define BAUD_RATE_LABEL_TEXT_LENGTH 11
 #define BAUD_RATE_LABEL_X 5
 #define BAUD_RATE_LABEL_Y 7
@@ -458,7 +458,7 @@ void EnableBaudRateSettingButton(BOOL enable)
     DrawMenuBar(g_mainWindow);
 }
 
-LRESULT CALLBACK BaudRateSettingWindowCallback(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK BaudRateSettingWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (wMsg)
     {
@@ -547,7 +547,7 @@ void ShowBaudRateSettingWindow(void)
     wndClass.lpszClassName = BAUD_RATE_SETTING_WINDOW_CLASS_NAME;
     wndClass.hInstance = g_mainInstance;
     wndClass.style = CS_VREDRAW | CS_HREDRAW;
-    wndClass.lpfnWndProc = BaudRateSettingWindowCallback;
+    wndClass.lpfnWndProc = BaudRateSettingWindowWndProc;
 
     RegisterClassExW(&wndClass);
 
