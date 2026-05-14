@@ -11,11 +11,10 @@ C_SOURCES = src/Error.c src/Main.c src/Serial.c src/SHA1.c src/UI.c src/Util.c
 C_HEADERS = src/Error.h src/Serial.h src/SHA1.h src/UI.h src/Util.h src/Version.h
 
 TEST_CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -Os
-
 TEST_C_SOURCES = src/SHA1.c test/Main.c test/SHA1Test.c
-TEST_C_HEADERS = src/SHA1.h test/SHA1Test.h
-
 TEST_BIN_NAME = Test.exe
+
+.PHONY: test
 
 all: $(BIN_NAME) $(C_SOURCES) $(C_HEADERS)
 
@@ -23,7 +22,7 @@ $(BIN_NAME): $(C_SOURCES) $(C_HEADERS)
 	$(CC) $(CFLAGS) -o $(BIN_NAME) $(C_SOURCES) $(LDFLAGS)
 	$(STRIP) $(BIN_NAME)
 
-test: $(TEST_C_SOURCES) $(TEST_C_HEADERS)
+test:
 	$(CC) $(TEST_CFLAGS) -o $(TEST_BIN_NAME) $(TEST_C_SOURCES)
 	.\$(TEST_BIN_NAME)
 

@@ -39,7 +39,7 @@ void SHA1Test(int *numberOfCases, int *successCount, int *failureCount)
         {
             if (!InputToSHA1(&context, (const unsigned char *)testCase.textInput, testCase.textInputLength))
             {
-                printf("Test %d, ERROR, InputToSHA1 returned FALSE at repeat count %d.\n", i, j);
+                printf("Test %d: ERROR, InputToSHA1 returned FALSE at repeat count %d.\n", i, j);
                 (*failureCount)++;
 
                 goto NextTest;
@@ -49,7 +49,7 @@ void SHA1Test(int *numberOfCases, int *successCount, int *failureCount)
         uint8_t messageDigest[SHA1_HASH_SIZE];
         if (!GetSHA1Result(&context, messageDigest))
         {
-            printf("Test %d, ERROR, GetSHA1Result returned FALSE.\n", i);
+            printf("Test %d: ERROR, GetSHA1Result returned FALSE.\n", i);
             (*failureCount)++;
 
             goto NextTest;
@@ -66,7 +66,7 @@ void SHA1Test(int *numberOfCases, int *successCount, int *failureCount)
             if (generatedHash[j] != testCase.expectedOutput[j])
             {
                 printf(
-                    "Test %d, ERROR, hash mismatch. Expected: %s, Generated: %s.\n",
+                    "Test %d: ERROR, hash mismatch. Expected: %s, Generated: %s.\n",
                     i,
                     testCase.expectedOutput,
                     generatedHash);
@@ -77,7 +77,7 @@ void SHA1Test(int *numberOfCases, int *successCount, int *failureCount)
             }
         }
 
-        printf("Test %d, SUCCESS.\n", i);
+        printf("Test %d: SUCCESS.\n", i);
         (*successCount)++;
 
     NextTest:
