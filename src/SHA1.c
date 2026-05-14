@@ -135,7 +135,7 @@ void InitialiseSHA1(SHA1Context *context)
     context->intermediateHash[4] = 0xC3D2E1F0;
 
     context->lengthLow = 0;
-    context->lengthLow = 0;
+    context->lengthHigh = 0;
     context->messageBlockIndex = 0;
 
     context->computed = FALSE;
