@@ -17,8 +17,12 @@ typedef struct
     BOOL corrupted;
 } SHA1Context;
 
+void DecodeSHA1Hash(uint8_t sha1Bytes[SHA1_HASH_SIZE], wchar_t sha1Hash[SHA1_HASH_SIZE]);
+
 void InitialiseSHA1(SHA1Context *context);
+
 BOOL InputToSHA1(SHA1Context *context, const uint8_t *messageArray, size_t length);
+
 BOOL GetSHA1Result(SHA1Context *context, uint8_t messageDigest[SHA1_HASH_SIZE]);
 
 #endif

@@ -1,7 +1,9 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <windows.h>
 
 #include "Error.h"
+#include "SHA1.h"
 #include "Serial.h"
 #include "UI.h"
 #include "Util.h"
@@ -518,11 +520,21 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
 
     StepProgressBar();
 
+    SHA1Context sha1Context;
+    InitialiseSHA1(&sha1Context);
+
     BYTE binBuffer[BINARY_BUFFER_SIZE];
     DWORD bytesWrittenTotal = 0;
     DWORD bytesRead;
     while (ReadFile(g_sendingFileHandle, binBuffer, sizeof(binBuffer), &bytesRead, NULL) && bytesRead > 0)
     {
+        if (!InputToSHA1(&sha1Context, binBuffer, bytesRead))
+        {
+            MessageBoxW(NULL, L"!?", L"!?", MB_OK);
+
+            goto CleanUp;
+        }
+
         DWORD bytesWrittenThisTime;
         DWORD offset = 0;
         while (offset < bytesRead)
@@ -552,6 +564,27 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
     if (bytesWrittenTotal != g_sendingFileSize)
     {
         BytesWrittenMismatchError(g_sendingFileSize, bytesWrittenTotal);
+
+        goto CleanUp;
+    }
+
+    uint8_t sha1Hash[SHA1_HASH_SIZE];
+    if (!GetSHA1Result(&sha1Context, sha1Hash))
+    {
+        MessageBoxW(NULL, L"!?", L"!?", MB_OK);
+
+        goto CleanUp;
+    }
+
+    if (!WriteFile(g_sendingCOMPortHandle, sha1Hash, SHA1_HASH_SIZE, &bytesWritten, NULL))
+    {
+        CannotWriteCOMPortError();
+
+        goto CleanUp;
+    }
+    if (bytesWritten != SHA1_HASH_SIZE)
+    {
+        BytesWrittenMismatchError(SHA1_HASH_SIZE, bytesWritten);
 
         goto CleanUp;
     }

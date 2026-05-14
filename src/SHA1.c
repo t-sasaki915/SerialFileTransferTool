@@ -2,6 +2,7 @@
 #include <windows.h>
 
 #include "SHA1.h"
+#include "Util.h"
 
 #define CIRCULAR_SHIFT(bits, word) (((word) << (bits)) | ((word) >> (32 - (bits))))
 
@@ -9,6 +10,14 @@
 #define K_1 (uint32_t)0x6ED9EBA1
 #define K_2 (uint32_t)0x8F1BBCDC
 #define K_3 (uint32_t)0xCA62C1D6
+
+void DecodeSHA1Hash(uint8_t sha1Bytes[SHA1_HASH_SIZE], wchar_t sha1Hash[SHA1_HASH_SIZE])
+{
+    for (int i = 0; i < SHA1_HASH_SIZE; i++)
+    {
+        Format(&sha1Hash[i * 2], 3, L"%02X", sha1Bytes[i]);
+    }
+}
 
 void SHA1ProcessMessageBlock(SHA1Context *context)
 {
