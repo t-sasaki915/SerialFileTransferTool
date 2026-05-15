@@ -11,12 +11,14 @@
 #define K_2 (uint32_t)0x8F1BBCDC
 #define K_3 (uint32_t)0xCA62C1D6
 
-void DecodeSHA1Hash(uint8_t sha1Bytes[SHA1_HASH_SIZE], wchar_t sha1Hash[SHA1_HASH_SIZE])
+void DecodeSHA1Hash(const uint8_t sha1Bytes[SHA1_HASH_SIZE], wchar_t sha1Hash[SHA1_HASH_TEXT_SIZE])
 {
     for (int i = 0; i < SHA1_HASH_SIZE; i++)
     {
         Format(&sha1Hash[i * 2], 3, L"%02X", sha1Bytes[i]);
     }
+
+    sha1Hash[SHA1_HASH_TEXT_SIZE - 1] = '\0';
 }
 
 void SHA1ProcessMessageBlock(SHA1Context *context)

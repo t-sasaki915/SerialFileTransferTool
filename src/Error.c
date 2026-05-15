@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <windows.h>
 
+#include "SHA1.h"
 #include "UI.h"
 #include "Util.h"
 
@@ -33,6 +34,13 @@
 
 #define BYTES_WRITTEN_MISMATCH_ERROR_MSG L"Bytes written mismatch. Expected: %lu, Written: %lu."
 #define BYTES_WRITTEN_MISMATCH_ERROR_MSG_LENGTH 100
+
+#define SHA1_INPUT_ERROR_MSG L"SHA1 input error."
+
+#define SHA1_CALCULATION_ERROR_MSG L"SHA1 calculation error."
+
+#define SHA1_MISMATCH_ERROR_MSG L"SHA1 mismatch.\nExpected: %ls,\nActual: %ls."
+#define SHA1_MISMATCH_ERROR_MSG_LENGTH 150
 
 #define SERIAL_START_SIGNATURE_MISMATCH_ERROR_MSG                                                                      \
     L"Serial start signature mismatch. Expected: 0x%016I64X, Read: 0x%016I64X."
@@ -117,6 +125,29 @@ void BytesWrittenMismatchError(DWORD expected, DWORD written)
 {
     wchar_t msg[BYTES_WRITTEN_MISMATCH_ERROR_MSG_LENGTH];
     Format(msg, BYTES_WRITTEN_MISMATCH_ERROR_MSG_LENGTH, BYTES_WRITTEN_MISMATCH_ERROR_MSG, expected, written);
+
+    RequestErrorDialog(msg);
+}
+
+void SHA1InputError(void)
+{
+    RequestErrorDialog(SHA1_INPUT_ERROR_MSG);
+}
+
+void SHA1CalculationError(void)
+{
+    RequestErrorDialog(SHA1_CALCULATION_ERROR_MSG);
+}
+
+void SHA1MismatchError(uint8_t *expected, uint8_t *actual)
+{
+    wchar_t decodedExpected[SHA1_HASH_TEXT_SIZE];
+    DecodeSHA1Hash(expected, decodedExpected);
+    wchar_t decodedActual[SHA1_HASH_TEXT_SIZE];
+    DecodeSHA1Hash(actual, decodedActual);
+
+    wchar_t msg[SHA1_MISMATCH_ERROR_MSG_LENGTH];
+    Format(msg, SHA1_MISMATCH_ERROR_MSG_LENGTH, SHA1_MISMATCH_ERROR_MSG, decodedExpected, decodedActual);
 
     RequestErrorDialog(msg);
 }

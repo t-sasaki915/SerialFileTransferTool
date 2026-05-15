@@ -18,6 +18,7 @@ typedef enum
     RECEIVE_STAGE_WAITING_FOR_START_SIGNATURE,
     RECEIVE_STAGE_RECEIVING_FILE_NAME,
     RECEIVE_STAGE_RECEIVING_BINARY,
+    RECEIVE_STAGE_RECEIVING_SHA1,
     RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE
 } ReceiveStage;
 
@@ -32,6 +33,7 @@ static wchar_t *g_receivingFileName;
 static HANDLE g_receivingCOMPortHandle;
 static HANDLE g_receivingFileHandle;
 static HANDLE g_receiverThreadHandle;
+static SHA1Context g_receivingSHA1Context;
 static volatile BOOL g_isReceiving = FALSE;
 
 static HANDLE g_senderThreadHandle;
@@ -250,7 +252,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                 g_receivingFileSize = readBuffer[1];
                 g_receivingFileNameSize = readBuffer[2];
 
-                uint64_t totalSteps = 3 + g_receivingFileSize;
+                uint64_t totalSteps = 4 + g_receivingFileSize;
                 ResetProgressBar();
                 SetProgressBarRange(totalSteps);
 
@@ -316,6 +318,8 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 
                 StepProgressBar();
 
+                InitialiseSHA1(&g_receivingSHA1Context);
+
                 g_receivedBytesTotal = 0;
                 g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_BINARY;
 
@@ -344,6 +348,19 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                     if (!ReadFile(g_receivingCOMPortHandle, binBuffer, bytesToRead, &bytesRead, NULL))
                     {
                         CannotReadCOMPortError();
+
+                        goto CleanUp;
+                    }
+                    if (bytesRead != bytesToRead)
+                    {
+                        BytesReadMismatchError(bytesToRead, bytesRead);
+
+                        goto CleanUp;
+                    }
+
+                    if (!InputToSHA1(&g_receivingSHA1Context, binBuffer, bytesRead))
+                    {
+                        SHA1InputError();
 
                         goto CleanUp;
                     }
@@ -380,8 +397,53 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 
                 if (g_receivedBytesTotal >= g_receivingFileSize)
                 {
-                    g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE;
+                    g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_SHA1;
                 }
+
+                continue;
+            }
+            case RECEIVE_STAGE_RECEIVING_SHA1: {
+                if (comStat.cbInQue < SHA1_HASH_SIZE)
+                {
+                    continue;
+                }
+
+                uint8_t expectedSHA1[SHA1_HASH_SIZE];
+                DWORD bytesRead;
+                if (!ReadFile(g_receivingCOMPortHandle, expectedSHA1, SHA1_HASH_SIZE, &bytesRead, NULL))
+                {
+                    CannotReadCOMPortError();
+
+                    goto CleanUp;
+                }
+                if (bytesRead != SHA1_HASH_SIZE)
+                {
+                    BytesReadMismatchError(SHA1_HASH_SIZE, bytesRead);
+
+                    goto CleanUp;
+                }
+
+                uint8_t actualSHA1[SHA1_HASH_SIZE];
+                if (!GetSHA1Result(&g_receivingSHA1Context, actualSHA1))
+                {
+                    SHA1CalculationError();
+
+                    goto CleanUp;
+                }
+
+                for (int i = 0; i < SHA1_HASH_SIZE; i++)
+                {
+                    if (actualSHA1[i] != expectedSHA1[i])
+                    {
+                        SHA1MismatchError(expectedSHA1, actualSHA1);
+
+                        goto CleanUp;
+                    }
+                }
+
+                StepProgressBar();
+
+                g_currentReceiveStage = RECEIVE_STAGE_RECEIVING_FINAL_SIGNATURE;
 
                 continue;
             }
@@ -480,7 +542,7 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
 {
     (void)lpParam;
 
-    size_t totalSteps = 3 + g_sendingFileSize;
+    size_t totalSteps = 4 + g_sendingFileSize;
     ResetProgressBar();
     SetProgressBarRange(totalSteps);
 
@@ -530,7 +592,7 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
     {
         if (!InputToSHA1(&sha1Context, binBuffer, bytesRead))
         {
-            MessageBoxW(NULL, L"!?", L"!?", MB_OK);
+            SHA1InputError();
 
             goto CleanUp;
         }
@@ -571,7 +633,7 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
     uint8_t sha1Hash[SHA1_HASH_SIZE];
     if (!GetSHA1Result(&sha1Context, sha1Hash))
     {
-        MessageBoxW(NULL, L"!?", L"!?", MB_OK);
+        SHA1CalculationError();
 
         goto CleanUp;
     }
@@ -588,6 +650,8 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
 
         goto CleanUp;
     }
+
+    StepProgressBar();
 
     uint64_t finalSignature = SFTT_SERIAL_FINAL_SIGNATURE;
     if (!WriteFile(g_sendingCOMPortHandle, &finalSignature, sizeof(uint64_t), &bytesWritten, NULL))

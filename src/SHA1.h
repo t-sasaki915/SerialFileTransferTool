@@ -5,6 +5,7 @@
 #include <windows.h>
 
 #define SHA1_HASH_SIZE 20
+#define SHA1_HASH_TEXT_SIZE (SHA1_HASH_SIZE * 2 + 1)
 
 typedef struct
 {
@@ -17,7 +18,7 @@ typedef struct
     BOOL corrupted;
 } SHA1Context;
 
-void DecodeSHA1Hash(uint8_t sha1Bytes[SHA1_HASH_SIZE], wchar_t sha1Hash[SHA1_HASH_SIZE]);
+void DecodeSHA1Hash(const uint8_t sha1Bytes[SHA1_HASH_SIZE], wchar_t sha1Hash[SHA1_HASH_TEXT_SIZE]);
 
 void InitialiseSHA1(SHA1Context *context);
 

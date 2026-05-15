@@ -26,6 +26,12 @@ void CannotWriteFileError(void);
 
 void BytesWrittenMismatchError(DWORD expected, DWORD written);
 
+void SHA1InputError(void);
+
+void SHA1CalculationError(void);
+
+void SHA1MismatchError(uint8_t *expected, uint8_t *actual);
+
 void SerialStartSignatureMismatchError(uint64_t expected, uint64_t read);
 
 void SerialFinalSignatureMismatchError(uint64_t expected, uint64_t read);
