@@ -98,6 +98,11 @@ BOOL OpenCOMPort(LPCWSTR portName, HANDLE *resultPtr)
         return FALSE;
     }
 
+    if (!SetupComm(hComPort, 65536, 65536))
+    {
+        return FALSE;
+    }
+
     if (!SetCommState(hComPort, &g_currentDCB))
     {
         return FALSE;
