@@ -12,19 +12,6 @@ int main(void)
 
     ShowMainWindow();
 
-    MSG msg;
-    BOOL bRet;
-    while ((bRet = GetMessageW(&msg, NULL, 0, 0)) != 0)
-    {
-        if (bRet == -1)
-        {
-            break;
-        }
-
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
-    }
-
     FinaliseSerial();
     FinaliseUI();
 

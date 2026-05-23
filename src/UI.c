@@ -7,10 +7,10 @@
 #include <commctrl.h>
 
 #include "Error.h"
+#include "Resource.h"
 #include "Serial.h"
 #include "UI.h"
 #include "Util.h"
-#include "Version.h"
 
 #define WM_SFTT_SHOW_ERROR_DIALOG WM_USER + 1
 #define WM_SFTT_UI_START_SENDING WM_USER + 2
@@ -152,8 +152,6 @@
 
 static HINSTANCE g_mainInstance;
 
-static HFONT g_uiFont;
-
 static HWND g_mainWindow;
 static HWND g_mainWindowStatusBar;
 static HWND g_mainWindowStatusBarProgressBar;
@@ -161,12 +159,18 @@ static HWND g_portSelectComboBox;
 static HWND g_portSelectUpdateButton;
 static HWND g_modeChangeButtonSendMode;
 static HWND g_modeChangeButtonReceiveMode;
+static HWND g_targetPathTextBox;
+static HWND g_targetBrowseButton;
+static HWND g_executeButton;
 static HWND g_startReceivingButton;
 static HWND g_receiveDirectoryTextBox;
 static HWND g_receiveDirectoryBrowseButton;
 static HWND g_sendFilePathTextBox;
 static HWND g_sendFilePathBrowseButton;
 static HWND g_sendFileButton;
+
+static wchar_t *g_lastSendModeTargetText = NULL;
+static wchar_t *g_lastReceiveModeTargetText = NULL;
 
 static HMENU g_mainWindowMenu;
 
@@ -181,21 +185,8 @@ void InitialiseUI(void)
 
     g_mainInstance = GetModuleHandleW(NULL);
 
-    g_uiFont = CreateFontW(
-        UI_FONT_SIZE,
-        0,
-        0,
-        0,
-        FW_NORMAL,
-        FALSE,
-        FALSE,
-        FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        5, // CLEARTYPE_QUALITY (for Windows 2000 compatibility)
-        DEFAULT_PITCH | FF_DONTCARE,
-        UI_FONT_NAME);
+    g_lastSendModeTargetText = _wcsdup(L"");
+    g_lastReceiveModeTargetText = _wcsdup(L"");
 }
 
 void FreePortSelectListPortNamePointers(void)
@@ -239,41 +230,67 @@ void UpdatePortSelectList(void)
     EnableWindow(g_portSelectUpdateButton, TRUE);
 }
 
-void SetApplicationMode(ApplicationMode appMode)
+void SetApplicationMode(ApplicationMode newAppMode)
 {
-    g_currentApplicationMode = appMode;
+    g_currentApplicationMode = newAppMode;
 
-    wchar_t *newMainWindowTitle = L"";
-    switch (appMode)
+    wchar_t newMainWindowTitle[256];
+    wchar_t newTargetLabelText[256];
+    wchar_t newExecuteButtonText[256];
+    wchar_t *newTargetPath = NULL;
+    switch (newAppMode)
     {
         case APPLICATION_MODE_SEND_MODE: {
-            newMainWindowTitle = MAIN_WINDOW_TITLE_SEND_MODE;
+            LoadStringW(g_mainInstance, IDSTRING_MAIN_DIALOG_TITLE_SEND_MODE, newMainWindowTitle, 256);
+            LoadStringW(g_mainInstance, IDSTRING_TARGET_LABEL_SEND_MODE, newTargetLabelText, 256);
+            LoadStringW(g_mainInstance, IDSTRING_EXECUTE_BUTTON_LABEL_SEND_MODE, newExecuteButtonText, 256);
+
+            wchar_t currentPath[MAX_PATH];
+            GetWindowTextW(g_targetPathTextBox, currentPath, MAX_PATH);
+
+            if (g_lastReceiveModeTargetText != NULL)
+            {
+                free(g_lastReceiveModeTargetText);
+                g_lastReceiveModeTargetText = NULL;
+            }
+            g_lastReceiveModeTargetText = _wcsdup(currentPath);
+
+            newTargetPath = g_lastSendModeTargetText;
 
             break;
         }
         case APPLICATION_MODE_RECEIVE_MODE: {
-            newMainWindowTitle = MAIN_WINDOW_TITLE_RECEIVE_MODE;
+            LoadStringW(g_mainInstance, IDSTRING_MAIN_DIALOG_TITLE_RECEIVE_MODE, newMainWindowTitle, 256);
+            LoadStringW(g_mainInstance, IDSTRING_TARGET_LABEL_RECEIVE_MODE, newTargetLabelText, 256);
+            LoadStringW(g_mainInstance, IDSTRING_EXECUTE_BUTTON_LABEL_RECEIVE_MODE, newExecuteButtonText, 256);
+
+            wchar_t currentPath[MAX_PATH];
+            GetWindowTextW(g_targetPathTextBox, currentPath, MAX_PATH);
+
+            if (g_lastSendModeTargetText != NULL)
+            {
+                free(g_lastSendModeTargetText);
+                g_lastSendModeTargetText = NULL;
+            }
+            g_lastSendModeTargetText = _wcsdup(currentPath);
+
+            newTargetPath = g_lastReceiveModeTargetText;
 
             break;
         }
     }
 
     SetWindowTextW(g_mainWindow, newMainWindowTitle);
+    SetDlgItemTextW(g_mainWindow, IDSTATIC_TARGET, newTargetLabelText);
+    SetWindowTextW(g_executeButton, newExecuteButtonText);
 
-    EnableWindow(g_modeChangeButtonSendMode, (appMode != APPLICATION_MODE_SEND_MODE));
-    EnableWindow(g_modeChangeButtonReceiveMode, (appMode != APPLICATION_MODE_RECEIVE_MODE));
+    if (newTargetPath != NULL)
+    {
+        SetWindowTextW(g_targetPathTextBox, newTargetPath);
+    }
 
-    int receiveModeComponentShowMode = (appMode == APPLICATION_MODE_RECEIVE_MODE) ? SW_SHOW : SW_HIDE;
-    ShowWindow(g_startReceivingButton, receiveModeComponentShowMode);
-    ShowWindow(g_receiveDirectoryTextBox, receiveModeComponentShowMode);
-    ShowWindow(g_receiveDirectoryBrowseButton, receiveModeComponentShowMode);
-
-    int sendModeComponentShowMode = (appMode == APPLICATION_MODE_SEND_MODE) ? SW_SHOW : SW_HIDE;
-    ShowWindow(g_sendFilePathTextBox, sendModeComponentShowMode);
-    ShowWindow(g_sendFilePathBrowseButton, sendModeComponentShowMode);
-    ShowWindow(g_sendFileButton, sendModeComponentShowMode);
-
-    InvalidateRect(g_mainWindow, NULL, TRUE);
+    EnableWindow(g_modeChangeButtonSendMode, (newAppMode != APPLICATION_MODE_SEND_MODE));
+    EnableWindow(g_modeChangeButtonReceiveMode, (newAppMode != APPLICATION_MODE_RECEIVE_MODE));
 }
 
 BOOL GetSelectedPortName(wchar_t **resultPtr)
@@ -446,10 +463,21 @@ void EnableStartReceivingButton(BOOL enable)
 
 void ShowVersion(void)
 {
-    wchar_t *versionText =
-        L"SerialFileTransferTool v" SFTT_VERSION "\r\n\r\n" SFTT_LICENCE "\r\n\r\nGitHub: " SFTT_GITHUB;
+    wchar_t versionTextFormat[512];
+    LoadStringW(g_mainInstance, IDSTRING_VERSION_DIALOG_TEXT, versionTextFormat, 512);
+    wchar_t sfttVersion[20];
+    LoadStringW(g_mainInstance, IDSTRING_SFTT_VERSION, sfttVersion, 20);
+    wchar_t sfttLicence[128];
+    LoadStringW(g_mainInstance, IDSTRING_SFTT_LICENCE, sfttLicence, 128);
+    wchar_t sfttGitHub[256];
+    LoadStringW(g_mainInstance, IDSTRING_SFTT_GITHUB, sfttGitHub, 256);
 
-    MessageBoxW(g_mainWindow, versionText, VERSION_WINDOW_TITLE, MB_ICONINFORMATION | MB_OK);
+    wchar_t versionText[512];
+    Format(versionText, 512, versionTextFormat, sfttVersion, sfttLicence, sfttGitHub);
+    wchar_t dialogTitle[128];
+    LoadStringW(g_mainInstance, IDSTRING_VERSION_DIALOG_TITLE, dialogTitle, 128);
+
+    MessageBoxW(g_mainWindow, versionText, dialogTitle, MB_ICONINFORMATION | MB_OK);
 }
 
 void EnableBaudRateSettingButton(BOOL enable)
@@ -467,32 +495,6 @@ LRESULT CALLBACK BaudRateSettingWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wPara
             SetForegroundWindow(g_mainWindow);
 
             return 0;
-        }
-        case WM_PAINT: {
-            HDC hdc;
-            PAINTSTRUCT ps;
-
-            hdc = BeginPaint(hwnd, &ps);
-
-            HFONT oldFont = (HFONT)SelectObject(hdc, g_uiFont);
-
-            TextOutW(hdc, BAUD_RATE_LABEL_X, BAUD_RATE_LABEL_Y, BAUD_RATE_LABEL_TEXT, BAUD_RATE_LABEL_TEXT_LENGTH);
-
-            SelectObject(hdc, oldFont);
-
-            EndPaint(hwnd, &ps);
-
-            return 0;
-        }
-        case WM_ERASEBKGND: {
-            HDC hdc = (HDC)wParam;
-            RECT rect;
-            GetClientRect(hwnd, &rect);
-
-            HBRUSH backgroundBrush = GetSysColorBrush(COLOR_WINDOW);
-            FillRect(hdc, &rect, backgroundBrush);
-
-            return 1;
         }
         case WM_COMMAND: {
             switch (LOWORD(wParam))
@@ -542,7 +544,7 @@ LRESULT CALLBACK BaudRateSettingWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wPara
 
 void ShowBaudRateSettingWindow(void)
 {
-    WNDCLASSEXW wndClass = {0};
+    /*WNDCLASSEXW wndClass = {0};
     wndClass.cbSize = sizeof(wndClass);
     wndClass.lpszClassName = BAUD_RATE_SETTING_WINDOW_CLASS_NAME;
     wndClass.hInstance = g_mainInstance;
@@ -603,7 +605,7 @@ void ShowBaudRateSettingWindow(void)
     SendMessageW(baudRateOKButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
 
     ShowWindow(g_baudRateSettingWindow, SW_SHOWNORMAL);
-    UpdateWindow(g_baudRateSettingWindow);
+    UpdateWindow(g_baudRateSettingWindow);*/
 }
 
 LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
@@ -638,104 +640,9 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
             return 0;
         }
-        case WM_DESTROY: {
-            PostQuitMessage(0);
-
-            return 0;
-        }
-        case WM_PAINT: {
-            HDC hdc;
-            PAINTSTRUCT ps;
-
-            hdc = BeginPaint(hwnd, &ps);
-
-            HFONT oldFont = (HFONT)SelectObject(hdc, g_uiFont);
-
-            TextOutW(
-                hdc,
-                PORT_SELECT_LABEL_X,
-                PORT_SELECT_LABEL_Y,
-                PORT_SELECT_LABEL_TEXT,
-                PORT_SELECT_LABEL_TEXT_LENGTH);
-
-            switch (g_currentApplicationMode)
-            {
-                case APPLICATION_MODE_SEND_MODE: {
-                    TextOutW(
-                        hdc,
-                        FILE_TO_SEND_LABEL_X,
-                        FILE_TO_SEND_LABEL_Y,
-                        FILE_TO_SEND_LABEL_TEXT,
-                        FILE_TO_SEND_LABEL_TEXT_LENGTH);
-
-                    break;
-                }
-                case APPLICATION_MODE_RECEIVE_MODE: {
-                    TextOutW(
-                        hdc,
-                        RECEIVE_DIRECTORY_LABEL_X,
-                        RECEIVE_DIRECTORY_LABEL_Y,
-                        RECEIVE_DIRECTORY_LABEL_TEXT,
-                        RECEIVE_DIRECTORY_LABEL_TEXT_LENGTH);
-
-                    break;
-                }
-            }
-
-            SelectObject(hdc, oldFont);
-
-            EndPaint(hwnd, &ps);
-
-            return 0;
-        }
-        case WM_ERASEBKGND: {
-            HDC hdc = (HDC)wParam;
-            RECT rect;
-            GetClientRect(hwnd, &rect);
-
-            HBRUSH backgroundBrush = GetSysColorBrush(COLOR_WINDOW);
-            FillRect(hdc, &rect, backgroundBrush);
-
-            return 1;
-        }
-        case WM_SIZE: {
-            SendMessageW(g_mainWindowStatusBar, wMsg, wParam, lParam);
-
-            return 0;
-        }
         case WM_COMMAND: {
             switch (LOWORD(wParam))
             {
-                case FILE_MENU_VERSION_ID: {
-                    ShowVersion();
-
-                    return 0;
-                }
-                case FILE_MENU_EXIT_ID: {
-                    PostQuitMessage(0);
-
-                    return 0;
-                }
-                case BAUD_RATE_MENU_ID: {
-                    ShowBaudRateSettingWindow();
-
-                    return 0;
-                }
-                case PORT_SELECT_UPDATE_BUTTON_ID: {
-                    UpdatePortSelectList();
-
-                    return 0;
-                }
-                case MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID: {
-                    SetApplicationMode(APPLICATION_MODE_SEND_MODE);
-
-                    return 0;
-                }
-                case MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID: {
-                    SetApplicationMode(APPLICATION_MODE_RECEIVE_MODE);
-
-                    return 0;
-                }
                 case START_RECEIVING_BUTTON_ID: {
                     if (IsReceiving())
                     {
@@ -834,244 +741,135 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
     }
 }
 
+INT_PTR CALLBACK MainDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
+{
+    (void)lParam;
+
+    switch (wMsg)
+    {
+        case WM_INITDIALOG: {
+            g_mainWindow = hwnd;
+
+            g_mainWindowStatusBar = CreateWindowW(
+                STATUSCLASSNAMEW,
+                NULL,
+                CCS_BOTTOM | WS_CHILD | WS_VISIBLE,
+                0,
+                0,
+                0,
+                0,
+                g_mainWindow,
+                NULL,
+                g_mainInstance,
+                NULL);
+
+            int parts[2] = {MAIN_DIALOG_WIDTH / 2, -1};
+            SendMessageW(g_mainWindowStatusBar, SB_SETPARTS, (WPARAM)2, (LPARAM)parts);
+
+            RECT rcPart;
+            SendMessageW(g_mainWindowStatusBar, SB_GETRECT, (WPARAM)1, (LPARAM)&rcPart);
+
+            g_mainWindowStatusBarProgressBar = CreateWindowW(
+                PROGRESS_CLASSW,
+                NULL,
+                WS_CHILD | WS_VISIBLE,
+                rcPart.left + 2,
+                rcPart.top + 2,
+                (rcPart.right - rcPart.left) - 4,
+                (rcPart.bottom - rcPart.top) - 4,
+                g_mainWindowStatusBar,
+                NULL,
+                g_mainInstance,
+                NULL);
+
+            g_portSelectComboBox = GetDlgItem(g_mainWindow, IDCOMBO_PORT);
+            g_portSelectUpdateButton = GetDlgItem(g_mainWindow, IDBUTTON_UPDATE_PORT_LIST);
+            g_modeChangeButtonSendMode = GetDlgItem(g_mainWindow, IDBUTTON_SEND_MODE);
+            g_modeChangeButtonReceiveMode = GetDlgItem(g_mainWindow, IDBUTTON_RECEIVE_MODE);
+            g_targetPathTextBox = GetDlgItem(g_mainWindow, IDEDIT_TARGET);
+            g_targetBrowseButton = GetDlgItem(g_mainWindow, IDBUTTON_BROWSE_TARGET);
+            g_executeButton = GetDlgItem(g_mainWindow, IDBUTTON_EXECUTE);
+
+            SetStatusBarText(STATUS_BAR_STATUS_READY);
+
+            UpdatePortSelectList();
+
+            SetApplicationMode(APPLICATION_MODE_SEND_MODE);
+
+            wchar_t currentDir[MAX_PATH];
+            GetCurrentDirectoryW(MAX_PATH, currentDir);
+
+            if (g_lastReceiveModeTargetText != NULL)
+            {
+                free(g_lastReceiveModeTargetText);
+                g_lastReceiveModeTargetText = NULL;
+            }
+            g_lastReceiveModeTargetText = _wcsdup(currentDir);
+
+            return TRUE;
+        }
+        case WM_COMMAND: {
+            switch (LOWORD(wParam))
+            {
+                case IDCANCEL: {
+                    EndDialog(hwnd, 0);
+
+                    return TRUE;
+                }
+                case IDMENUENTRY_FILE_EXIT: {
+                    EndDialog(hwnd, 0);
+
+                    return TRUE;
+                }
+                case IDMENUENTRY_FILE_VERSION: {
+                    ShowVersion();
+
+                    return TRUE;
+                }
+                case IDMENUENTRY_BAUDRATE: {
+                    ShowBaudRateSettingWindow();
+
+                    return TRUE;
+                }
+                case IDBUTTON_UPDATE_PORT_LIST: {
+                    UpdatePortSelectList();
+
+                    return TRUE;
+                }
+                case IDBUTTON_SEND_MODE: {
+                    SetApplicationMode(APPLICATION_MODE_SEND_MODE);
+
+                    return TRUE;
+                }
+                case IDBUTTON_RECEIVE_MODE: {
+                    SetApplicationMode(APPLICATION_MODE_RECEIVE_MODE);
+
+                    return TRUE;
+                }
+            }
+        }
+    }
+
+    return FALSE;
+}
+
 void ShowMainWindow(void)
 {
-    WNDCLASSEXW mainWindowClass = {0};
-    mainWindowClass.cbSize = sizeof(mainWindowClass);
-    mainWindowClass.lpszClassName = MAIN_WINDOW_CLASS_NAME;
-    mainWindowClass.hInstance = g_mainInstance;
-    mainWindowClass.style = CS_VREDRAW | CS_HREDRAW;
-    mainWindowClass.lpfnWndProc = MainWindowWndProc;
-
-    RegisterClassExW(&mainWindowClass);
-
-    g_mainWindowMenu = CreateMenu();
-
-    HMENU fileMenu = CreateMenu();
-    AppendMenuW(fileMenu, MF_STRING, (UINT_PTR)FILE_MENU_VERSION_ID, FILE_MENU_VERSION_LABEL);
-    AppendMenuW(fileMenu, MF_SEPARATOR, (UINT_PTR)0, NULL);
-    AppendMenuW(fileMenu, MF_STRING, (UINT_PTR)FILE_MENU_EXIT_ID, FILE_MENU_EXIT_LABEL);
-
-    AppendMenuW(g_mainWindowMenu, MF_POPUP, (UINT_PTR)fileMenu, FILE_MENU_LABEL);
-    AppendMenuW(g_mainWindowMenu, MF_STRING, (UINT_PTR)BAUD_RATE_MENU_ID, BAUD_RATE_MENU_LABEL);
-
-    g_mainWindow = CreateWindowW(
-        MAIN_WINDOW_CLASS_NAME,
-        NULL,
-        WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        MAIN_WINDOW_WIDTH,
-        MAIN_WINDOW_HEIGHT,
-        NULL,
-        g_mainWindowMenu,
-        g_mainInstance,
-        NULL);
-
-    g_portSelectComboBox = CreateWindowW(
-        L"COMBOBOX",
-        NULL,
-        CBS_DROPDOWNLIST | WS_CHILD | WS_VSCROLL | WS_VISIBLE,
-        PORT_SELECT_COMBOBOX_X,
-        PORT_SELECT_COMBOBOX_Y,
-        PORT_SELECT_COMBOBOX_WIDTH,
-        PORT_SELECT_COMBOBOX_HEIGHT,
-        g_mainWindow,
-        NULL,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(g_portSelectComboBox, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    g_portSelectUpdateButton = CreateWindowW(
-        L"BUTTON",
-        PORT_SELECT_UPDATE_BUTTON_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        PORT_SELECT_UPDATE_BUTTON_X,
-        PORT_SELECT_UPDATE_BUTTON_Y,
-        PORT_SELECT_UPDATE_BUTTON_WIDTH,
-        PORT_SELECT_UPDATE_BUTTON_HEIGHT,
-        g_mainWindow,
-        (HMENU)PORT_SELECT_UPDATE_BUTTON_ID,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(g_portSelectUpdateButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    g_modeChangeButtonSendMode = CreateWindowW(
-        L"BUTTON",
-        MODE_CHANGE_BUTTON_SEND_MODE_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        MODE_CHANGE_BUTTON_SEND_MODE_X,
-        MODE_CHANGE_BUTTON_SEND_MODE_Y,
-        MODE_CHANGE_BUTTON_SEND_MODE_WIDTH,
-        MODE_CHANGE_BUTTON_SEND_MODE_HEIGHT,
-        g_mainWindow,
-        (HMENU)MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(g_modeChangeButtonSendMode, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    g_modeChangeButtonReceiveMode = CreateWindowW(
-        L"BUTTON",
-        MODE_CHANGE_BUTTON_RECEIVE_MODE_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        MODE_CHANGE_BUTTON_RECEIVE_MODE_X,
-        MODE_CHANGE_BUTTON_RECEIVE_MODE_Y,
-        MODE_CHANGE_BUTTON_RECEIVE_MODE_WIDTH,
-        MODE_CHANGE_BUTTON_RECEIVE_MODE_HEIGHT,
-        g_mainWindow,
-        (HMENU)MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(g_modeChangeButtonReceiveMode, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    g_startReceivingButton = CreateWindowW(
-        L"BUTTON",
-        START_RECEIVING_BUTTON_LABEL_START,
-        WS_CHILD | WS_VISIBLE,
-        START_RECEIVING_BUTTON_X,
-        START_RECEIVING_BUTTON_Y,
-        START_RECEIVING_BUTTON_WIDTH,
-        START_RECEIVING_BUTTON_HEIGHT,
-        g_mainWindow,
-        (HMENU)START_RECEIVING_BUTTON_ID,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(g_startReceivingButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    g_receiveDirectoryTextBox = CreateWindowW(
-        L"EDIT",
-        NULL,
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        RECEIVE_DIRECTORY_TEXTBOX_X,
-        RECEIVE_DIRECTORY_TEXTBOX_Y,
-        RECEIVE_DIRECTORY_TEXTBOX_WIDTH,
-        RECEIVE_DIRECTORY_TEXTBOX_HEIGHT,
-        g_mainWindow,
-        NULL,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(g_receiveDirectoryTextBox, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    wchar_t currentDir[MAX_PATH];
-    GetCurrentDirectoryW(MAX_PATH, currentDir);
-    SetWindowTextW(g_receiveDirectoryTextBox, currentDir);
-
-    g_receiveDirectoryBrowseButton = CreateWindowW(
-        L"BUTTON",
-        RECEIVE_DIRECTORY_BROWSE_BUTTON_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        RECEIVE_DIRECTORY_BROWSE_BUTTON_X,
-        RECEIVE_DIRECTORY_BROWSE_BUTTON_Y,
-        RECEIVE_DIRECTORY_BROWSE_BUTTON_WIDTH,
-        RECEIVE_DIRECTORY_BROWSE_BUTTON_HEIGHT,
-        g_mainWindow,
-        (HMENU)RECEIVE_DIRECTORY_BROWSE_BUTTON_ID,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(g_receiveDirectoryBrowseButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    g_sendFilePathTextBox = CreateWindowW(
-        L"EDIT",
-        NULL,
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        SEND_FILE_PATH_TEXTBOX_X,
-        SEND_FILE_PATH_TEXTBOX_Y,
-        SEND_FILE_PATH_TEXTBOX_WIDTH,
-        SEND_FILE_PATH_TEXTBOX_HEIGHT,
-        g_mainWindow,
-        NULL,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(g_sendFilePathTextBox, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    g_sendFilePathBrowseButton = CreateWindowW(
-        L"BUTTON",
-        SEND_FILE_PATH_BROWSE_BUTTON_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        SEND_FILE_PATH_BROWSE_BUTTON_X,
-        SEND_FILE_PATH_BROWSE_BUTTON_Y,
-        SEND_FILE_PATH_BROWSE_BUTTON_WIDTH,
-        SEND_FILE_PATH_BROWSE_BUTTON_HEIGHT,
-        g_mainWindow,
-        (HMENU)SEND_FILE_PATH_BROWSE_BUTTON_ID,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(g_sendFilePathBrowseButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    g_sendFileButton = CreateWindowW(
-        L"BUTTON",
-        SEND_FILE_BUTTON_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        SEND_FILE_BUTTON_X,
-        SEND_FILE_BUTTON_Y,
-        SEND_FILE_BUTTON_WIDTH,
-        SEND_FILE_BUTTON_HEIGHT,
-        g_mainWindow,
-        (HMENU)SEND_FILE_BUTTON_ID,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(g_sendFileButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    g_mainWindowStatusBar = CreateWindowW(
-        STATUSCLASSNAMEW,
-        NULL,
-        CCS_BOTTOM | WS_CHILD | WS_VISIBLE,
-        0,
-        0,
-        0,
-        0,
-        g_mainWindow,
-        NULL,
-        g_mainInstance,
-        NULL);
-
-    int parts[2] = {MAIN_WINDOW_WIDTH / 3, -1};
-    SendMessageW(g_mainWindowStatusBar, SB_SETPARTS, (WPARAM)2, (LPARAM)parts);
-
-    SendMessageW(g_mainWindowStatusBar, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    RECT rcPart;
-    SendMessageW(g_mainWindowStatusBar, SB_GETRECT, (WPARAM)1, (LPARAM)&rcPart);
-
-    g_mainWindowStatusBarProgressBar = CreateWindowW(
-        PROGRESS_CLASSW,
-        NULL,
-        WS_CHILD | WS_VISIBLE,
-        rcPart.left + 2,
-        rcPart.top + 2,
-        (rcPart.right - rcPart.left) - 4,
-        (rcPart.bottom - rcPart.top) - 4,
-        g_mainWindowStatusBar,
-        NULL,
-        g_mainInstance,
-        NULL);
-
-    SetStatusBarText(STATUS_BAR_STATUS_READY);
-
-    UpdatePortSelectList();
-
-    SetApplicationMode(APPLICATION_MODE_SEND_MODE);
-
-    ShowWindow(g_mainWindow, SW_SHOWNORMAL);
-    UpdateWindow(g_mainWindow);
+    DialogBoxW(g_mainInstance, MAKEINTRESOURCEW(IDDIALOG_MAIN_DIALOG), NULL, MainDialogDlgProc);
 }
 
 void FinaliseUI(void)
 {
     FreePortSelectListPortNamePointers();
 
-    if (g_uiFont != NULL)
+    if (g_lastSendModeTargetText != NULL)
     {
-        DeleteObject(g_uiFont);
+        free(g_lastSendModeTargetText);
+        g_lastSendModeTargetText = NULL;
+    }
+    if (g_lastReceiveModeTargetText != NULL)
+    {
+        free(g_lastReceiveModeTargetText);
+        g_lastReceiveModeTargetText = NULL;
     }
 }
