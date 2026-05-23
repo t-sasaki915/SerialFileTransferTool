@@ -9,7 +9,7 @@ LDFLAGS = -static -static-libgcc -lcomctl32 -lgdi32 -lcomdlg32 -lole32
 BIN_NAME = SerialFileTransferTool.exe
 
 C_SOURCES = src/Error.c src/Main.c src/Serial.c src/SHA1.c src/UI.c src/Util.c
-C_HEADERS = src/Error.h src/Serial.h src/Resource.h src/SHA1.h src/UI.h src/Util.h src/Version.h
+C_HEADERS = src/Error.h src/Serial.h src/Resource.h src/SHA1.h src/UI.h src/Util.h
 
 RESOURCE_FILE = src/Resource.rc
 RESOURCE_FILE_O = Resource.o

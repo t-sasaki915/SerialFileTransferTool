@@ -1,142 +1,125 @@
 #include <stdint.h>
 #include <windows.h>
 
+#include "Error.h"
 #include "SHA1.h"
 #include "UI.h"
-#include "Util.h"
-
-#define CANNOT_OPEN_FILE_ERROR_MSG L"Cannot open the file '%ls': %lu."
-#define CANNOT_OPEN_FILE_ERROR_MSG_LENGTH 350
-
-#define CANNOT_GET_FILE_SIZE_ERROR_MSG L"Cannot get the size of the file '%ls': %lu."
-#define CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH 400
-
-#define PLEASE_SPECIFY_PORT_ERROR_MSG L"Please specify a port."
-
-#define PLEASE_SPECIFY_FILE_PATH_ERROR_MSG L"Please specify a filepath."
-
-#define PLEASE_SPECIFY_DIRECTORY_ERROR_MSG L"Please specify a directory."
-
-#define CANNOT_OPEN_COM_PORT_ERROR_MSG L"Cannot open the COM port '%ls': %lu."
-#define CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH 100
-
-#define CANNOT_READ_COM_PORT_ERROR_MSG L"Cannot read COM port: '%lu'."
-#define CANNOT_READ_COM_PORT_ERROR_MSG_LENGTH 30
-
-#define BYTES_READ_MISMATCH_ERROR_MSG L"Bytes read mismatch. Expected: %lu, Read: %lu."
-#define BYTES_READ_MISMATCH_ERROR_MSG_LENGTH 100
-
-#define CANNOT_WRITE_COM_PORT_ERROR_MSG L"Cannot write to COM port: '%lu'."
-#define CANNOT_WRITE_COM_PORT_ERROR_MSG_LENGTH 50
-
-#define CANNOT_WRITE_FILE_ERROR_MSG L"Cannot write to file: '%lu'."
-#define CANNOT_WRITE_FILE_ERROR_MSG_LENGTH 50
-
-#define BYTES_WRITTEN_MISMATCH_ERROR_MSG L"Bytes written mismatch. Expected: %lu, Written: %lu."
-#define BYTES_WRITTEN_MISMATCH_ERROR_MSG_LENGTH 100
-
-#define SHA1_INPUT_ERROR_MSG L"SHA1 input error."
-
-#define SHA1_CALCULATION_ERROR_MSG L"SHA1 calculation error."
-
-#define SHA1_MISMATCH_ERROR_MSG L"SHA1 mismatch.\nExpected: %ls,\nActual: %ls."
-#define SHA1_MISMATCH_ERROR_MSG_LENGTH 150
-
-#define SERIAL_START_SIGNATURE_MISMATCH_ERROR_MSG                                                                      \
-    L"Serial start signature mismatch. Expected: 0x%016I64X, Read: 0x%016I64X."
-#define SERIAL_START_SIGNATURE_MISMATCH_ERROR_MSG_LENGTH 150
-
-#define SERIAL_FINAL_SIGNATURE_MISMATCH_ERROR_MSG                                                                      \
-    L"Serial final signature mismatch. Expected: 0x%016I64X, Read: 0x%016I64X."
-#define SERIAL_FINAL_SIGNATURE_MISMATCH_ERROR_MSG_LENGTH 150
 
 void CannotOpenFileError(wchar_t *filePath)
 {
-    wchar_t msg[CANNOT_OPEN_FILE_ERROR_MSG_LENGTH];
-    Format(msg, CANNOT_OPEN_FILE_ERROR_MSG_LENGTH, CANNOT_OPEN_FILE_ERROR_MSG, filePath, GetLastError());
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_CANNOT_OPEN_FILE;
+    ctx->lastErrorCode = GetLastError();
+    ctx->errorDetails.filePath = _wcsdup(filePath);
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }
 
 void CannotGetFileSizeError(wchar_t *filePath)
 {
-    wchar_t msg[CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH];
-    Format(msg, CANNOT_GET_FILE_SIZE_ERROR_MSG_LENGTH, CANNOT_GET_FILE_SIZE_ERROR_MSG, filePath, GetLastError());
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_CANNOT_GET_FILE_SIZE;
+    ctx->lastErrorCode = GetLastError();
+    ctx->errorDetails.filePath = _wcsdup(filePath);
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }
 
 void PleaseSpecifyPortError(void)
 {
-    RequestErrorDialog(PLEASE_SPECIFY_PORT_ERROR_MSG);
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_PORT_NOT_SPECIFIED;
+
+    RequestErrorDialog(ctx);
 }
 
 void PleaseSpecifyFilePathError(void)
 {
-    RequestErrorDialog(PLEASE_SPECIFY_FILE_PATH_ERROR_MSG);
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_FILE_PATH_NOT_SPECIFIED;
+
+    RequestErrorDialog(ctx);
 }
 
 void PleaseSpecifyDirectoryError(void)
 {
-    RequestErrorDialog(PLEASE_SPECIFY_DIRECTORY_ERROR_MSG);
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_DESTINATION_NOT_SPECIFIED;
+
+    RequestErrorDialog(ctx);
 }
 
 void CannotOpenCOMPortError(wchar_t *portName)
 {
-    wchar_t msg[CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH];
-    Format(msg, CANNOT_OPEN_COM_PORT_ERROR_MSG_LENGTH, CANNOT_OPEN_COM_PORT_ERROR_MSG, portName, GetLastError());
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_CANNOT_OPEN_COM_PORT;
+    ctx->lastErrorCode = GetLastError();
+    ctx->errorDetails.portName = _wcsdup(portName);
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }
 
 void CannotReadCOMPortError(void)
 {
-    wchar_t msg[CANNOT_READ_COM_PORT_ERROR_MSG_LENGTH];
-    Format(msg, CANNOT_READ_COM_PORT_ERROR_MSG_LENGTH, CANNOT_READ_COM_PORT_ERROR_MSG, GetLastError());
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_CANNOT_READ_COM_PORT;
+    ctx->lastErrorCode = GetLastError();
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }
 
 void BytesReadMismatchError(DWORD expected, DWORD read)
 {
-    wchar_t msg[BYTES_READ_MISMATCH_ERROR_MSG_LENGTH];
-    Format(msg, BYTES_READ_MISMATCH_ERROR_MSG_LENGTH, BYTES_READ_MISMATCH_ERROR_MSG, expected, read);
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_BYTES_READ_MISMATCH;
+    ctx->errorDetails.mismatchError.expected.dword = expected;
+    ctx->errorDetails.mismatchError.actual.dword = read;
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }
 
 void CannotWriteCOMPortError(void)
 {
-    wchar_t msg[CANNOT_WRITE_COM_PORT_ERROR_MSG_LENGTH];
-    Format(msg, CANNOT_WRITE_COM_PORT_ERROR_MSG_LENGTH, CANNOT_WRITE_COM_PORT_ERROR_MSG, GetLastError());
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_CANNOT_WRITE_COM_PORT;
+    ctx->lastErrorCode = GetLastError();
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }
 
 void CannotWriteFileError(void)
 {
-    wchar_t msg[CANNOT_WRITE_FILE_ERROR_MSG_LENGTH];
-    Format(msg, CANNOT_WRITE_FILE_ERROR_MSG_LENGTH, CANNOT_WRITE_FILE_ERROR_MSG, GetLastError());
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_CANNOT_WRITE_FILE;
+    ctx->lastErrorCode = GetLastError();
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }
 
 void BytesWrittenMismatchError(DWORD expected, DWORD written)
 {
-    wchar_t msg[BYTES_WRITTEN_MISMATCH_ERROR_MSG_LENGTH];
-    Format(msg, BYTES_WRITTEN_MISMATCH_ERROR_MSG_LENGTH, BYTES_WRITTEN_MISMATCH_ERROR_MSG, expected, written);
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_BYTES_WRITTEN_MISMATCH;
+    ctx->errorDetails.mismatchError.expected.dword = expected;
+    ctx->errorDetails.mismatchError.actual.dword = written;
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }
 
 void SHA1InputError(void)
 {
-    RequestErrorDialog(SHA1_INPUT_ERROR_MSG);
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_SHA1_INPUT;
+
+    RequestErrorDialog(ctx);
 }
 
 void SHA1CalculationError(void)
 {
-    RequestErrorDialog(SHA1_CALCULATION_ERROR_MSG);
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_SHA1_CALCULATION;
+
+    RequestErrorDialog(ctx);
 }
 
 void SHA1MismatchError(uint8_t *expected, uint8_t *actual)
@@ -146,34 +129,30 @@ void SHA1MismatchError(uint8_t *expected, uint8_t *actual)
     wchar_t decodedActual[SHA1_HASH_TEXT_SIZE];
     DecodeSHA1Hash(actual, decodedActual);
 
-    wchar_t msg[SHA1_MISMATCH_ERROR_MSG_LENGTH];
-    Format(msg, SHA1_MISMATCH_ERROR_MSG_LENGTH, SHA1_MISMATCH_ERROR_MSG, decodedExpected, decodedActual);
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_SHA1_MISMATCH;
+    ctx->errorDetails.mismatchError.expected.wchar = _wcsdup(decodedExpected);
+    ctx->errorDetails.mismatchError.actual.wchar = _wcsdup(decodedActual);
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }
 
 void SerialStartSignatureMismatchError(uint64_t expected, uint64_t read)
 {
-    wchar_t msg[SERIAL_START_SIGNATURE_MISMATCH_ERROR_MSG_LENGTH];
-    Format(
-        msg,
-        SERIAL_START_SIGNATURE_MISMATCH_ERROR_MSG_LENGTH,
-        SERIAL_START_SIGNATURE_MISMATCH_ERROR_MSG,
-        expected,
-        read);
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_SERIAL_START_SIGNATURE_MISMATCH;
+    ctx->errorDetails.mismatchError.expected.u64 = expected;
+    ctx->errorDetails.mismatchError.actual.u64 = read;
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }
 
 void SerialFinalSignatureMismatchError(uint64_t expected, uint64_t read)
 {
-    wchar_t msg[SERIAL_FINAL_SIGNATURE_MISMATCH_ERROR_MSG_LENGTH];
-    Format(
-        msg,
-        SERIAL_FINAL_SIGNATURE_MISMATCH_ERROR_MSG_LENGTH,
-        SERIAL_FINAL_SIGNATURE_MISMATCH_ERROR_MSG,
-        expected,
-        read);
+    ErrorContext *ctx = malloc(sizeof(ErrorContext));
+    ctx->errorType = ERROR_TYPE_SERIAL_FINAL_SIGNATURE_MISMATCH;
+    ctx->errorDetails.mismatchError.expected.u64 = expected;
+    ctx->errorDetails.mismatchError.actual.u64 = read;
 
-    RequestErrorDialog(msg);
+    RequestErrorDialog(ctx);
 }

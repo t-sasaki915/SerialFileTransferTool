@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <windows.h>
 
+#include "Error.h"
+
 typedef enum
 {
     APPLICATION_MODE_SEND_MODE,
@@ -35,9 +37,9 @@ BOOL BrowseFileToSend(wchar_t *resultPtr);
 
 void UpdateSendFilePathTextbox(wchar_t *filePath);
 
-void GetSendFilePath(wchar_t *resultPtr);
+void GetTargetPath(wchar_t *resultPtr);
 
-void RequestErrorDialog(wchar_t *msg);
+void RequestErrorDialog(ErrorContext *errorContext);
 
 void UIStopReceiving(void);
 

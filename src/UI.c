@@ -17,58 +17,6 @@
 #define WM_SFTT_UI_FINISH_SENDING WM_USER + 3
 #define WM_SFTT_ENABLE_START_RECEIVING_BUTTON WM_USER + 4
 
-#define UI_FONT_NAME L"Tahoma"
-#define UI_FONT_SIZE 15
-
-#define VERSION_WINDOW_TITLE L"About SFTT"
-
-#define MAIN_WINDOW_CLASS_NAME L"SFTT_MAINWINDOW_CLASS"
-#define MAIN_WINDOW_TITLE_SEND_MODE L"SFTT - Send"
-#define MAIN_WINDOW_TITLE_RECEIVE_MODE L"SFTT - Receive"
-#define MAIN_WINDOW_WIDTH 274
-#define MAIN_WINDOW_HEIGHT 217
-
-#define PORT_SELECT_LABEL_TEXT L"Port:"
-#define PORT_SELECT_LABEL_TEXT_LENGTH 5
-#define PORT_SELECT_LABEL_X 5
-#define PORT_SELECT_LABEL_Y 7
-
-#define PORT_SELECT_COMBOBOX_X 35
-#define PORT_SELECT_COMBOBOX_Y 4
-#define PORT_SELECT_COMBOBOX_WIDTH 150
-#define PORT_SELECT_COMBOBOX_HEIGHT 200
-
-#define PORT_SELECT_UPDATE_BUTTON_LABEL L"Update"
-#define PORT_SELECT_UPDATE_BUTTON_X 190
-#define PORT_SELECT_UPDATE_BUTTON_Y 4
-#define PORT_SELECT_UPDATE_BUTTON_WIDTH 70
-#define PORT_SELECT_UPDATE_BUTTON_HEIGHT 20
-#define PORT_SELECT_UPDATE_BUTTON_ID 100
-
-#define MODE_CHANGE_BUTTON_SEND_MODE_LABEL L"Send Mode"
-#define MODE_CHANGE_BUTTON_SEND_MODE_X 7
-#define MODE_CHANGE_BUTTON_SEND_MODE_Y 30
-#define MODE_CHANGE_BUTTON_SEND_MODE_WIDTH 123
-#define MODE_CHANGE_BUTTON_SEND_MODE_HEIGHT 40
-#define MODE_CHANGE_BUTTON_SEND_MODE_BUTTON_ID 101
-
-#define MODE_CHANGE_BUTTON_RECEIVE_MODE_LABEL L"Receive Mode"
-#define MODE_CHANGE_BUTTON_RECEIVE_MODE_X 137
-#define MODE_CHANGE_BUTTON_RECEIVE_MODE_Y 30
-#define MODE_CHANGE_BUTTON_RECEIVE_MODE_WIDTH 123
-#define MODE_CHANGE_BUTTON_RECEIVE_MODE_HEIGHT 40
-#define MODE_CHANGE_BUTTON_RECEIVE_MODE_BUTTON_ID 102
-
-#define RECEIVE_DIRECTORY_LABEL_TEXT L"Dest:"
-#define RECEIVE_DIRECTORY_LABEL_TEXT_LENGTH 5
-#define RECEIVE_DIRECTORY_LABEL_X 3
-#define RECEIVE_DIRECTORY_LABEL_Y 79
-
-#define RECEIVE_DIRECTORY_TEXTBOX_X 35
-#define RECEIVE_DIRECTORY_TEXTBOX_Y 76
-#define RECEIVE_DIRECTORY_TEXTBOX_WIDTH 148
-#define RECEIVE_DIRECTORY_TEXTBOX_HEIGHT 20
-
 #define RECEIVE_DIRECTORY_BROWSE_BUTTON_LABEL L"Browse"
 #define RECEIVE_DIRECTORY_BROWSE_BUTTON_X 190
 #define RECEIVE_DIRECTORY_BROWSE_BUTTON_Y 76
@@ -246,7 +194,7 @@ void SetApplicationMode(ApplicationMode newAppMode)
             LoadStringW(g_mainInstance, IDSTRING_EXECUTE_BUTTON_LABEL_SEND_MODE, newExecuteButtonText, 256);
 
             wchar_t currentPath[MAX_PATH];
-            GetWindowTextW(g_targetPathTextBox, currentPath, MAX_PATH);
+            GetTargetPath(currentPath);
 
             if (g_lastReceiveModeTargetText != NULL)
             {
@@ -265,7 +213,7 @@ void SetApplicationMode(ApplicationMode newAppMode)
             LoadStringW(g_mainInstance, IDSTRING_EXECUTE_BUTTON_LABEL_RECEIVE_MODE, newExecuteButtonText, 256);
 
             wchar_t currentPath[MAX_PATH];
-            GetWindowTextW(g_targetPathTextBox, currentPath, MAX_PATH);
+            GetTargetPath(currentPath);
 
             if (g_lastSendModeTargetText != NULL)
             {
@@ -350,9 +298,9 @@ void UpdateSendFilePathTextbox(wchar_t *filePath)
     SetWindowTextW(g_sendFilePathTextBox, filePath);
 }
 
-void GetSendFilePath(wchar_t *resultPtr)
+void GetTargetPath(wchar_t *resultPtr)
 {
-    GetWindowTextW(g_sendFilePathTextBox, resultPtr, MAX_PATH);
+    GetWindowTextW(g_targetPathTextBox, resultPtr, MAX_PATH);
 }
 
 void UpdateReceiveDirectoryTextbox(wchar_t *dirPath)
@@ -375,9 +323,9 @@ void EnableSetModeControls(BOOL enable)
     EnableWindow(g_sendFileButton, enable);
 }
 
-void RequestErrorDialog(wchar_t *msg)
+void RequestErrorDialog(ErrorContext *errorContext)
 {
-    SendMessageW(g_mainWindow, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)_wcsdup(msg), (LPARAM)0);
+    SendMessageW(g_mainWindow, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)errorContext, (LPARAM)0);
 }
 
 void UIStopReceiving(void)
@@ -718,7 +666,7 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     }
 
                     wchar_t filePath[MAX_PATH];
-                    GetSendFilePath(filePath);
+                    GetTargetPath(filePath);
                     if (wcslen(filePath) == 0)
                     {
                         PleaseSpecifyFilePathError();
@@ -747,6 +695,92 @@ INT_PTR CALLBACK MainDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
     switch (wMsg)
     {
+        case WM_SFTT_SHOW_ERROR_DIALOG: {
+            ErrorContext *ctx = (ErrorContext *)wParam;
+
+            wchar_t errorDialogTitle[32];
+            LoadStringW(g_mainInstance, IDSTRING_ERROR_DIALOG_TITLE, errorDialogTitle, 32);
+
+            wchar_t errorMsg[1024];
+            wchar_t errorMsgFormat[1024];
+            LoadStringW(g_mainInstance, ctx->errorType, errorMsgFormat, 1024);
+
+            switch (ctx->errorType)
+            {
+                case ERROR_TYPE_CANNOT_OPEN_FILE:
+                case ERROR_TYPE_CANNOT_GET_FILE_SIZE: {
+                    Format(errorMsg, 1024, errorMsgFormat, ctx->errorDetails.filePath, ctx->lastErrorCode);
+
+                    free(ctx->errorDetails.filePath);
+
+                    break;
+                }
+                case ERROR_TYPE_CANNOT_READ_COM_PORT:
+                case ERROR_TYPE_CANNOT_WRITE_COM_PORT:
+                case ERROR_TYPE_CANNOT_WRITE_FILE: {
+                    Format(errorMsg, 1024, errorMsgFormat, ctx->lastErrorCode);
+
+                    break;
+                }
+                case ERROR_TYPE_PORT_NOT_SPECIFIED:
+                case ERROR_TYPE_FILE_PATH_NOT_SPECIFIED:
+                case ERROR_TYPE_DESTINATION_NOT_SPECIFIED:
+                case ERROR_TYPE_SHA1_INPUT:
+                case ERROR_TYPE_SHA1_CALCULATION: {
+                    Format(errorMsg, 1024, errorMsgFormat);
+
+                    break;
+                }
+                case ERROR_TYPE_CANNOT_OPEN_COM_PORT: {
+                    Format(errorMsg, 1024, errorMsgFormat, ctx->errorDetails.portName, ctx->lastErrorCode);
+
+                    free(ctx->errorDetails.portName);
+
+                    break;
+                }
+                case ERROR_TYPE_BYTES_READ_MISMATCH:
+                case ERROR_TYPE_BYTES_WRITTEN_MISMATCH: {
+                    Format(
+                        errorMsg,
+                        1024,
+                        errorMsgFormat,
+                        ctx->errorDetails.mismatchError.expected.dword,
+                        ctx->errorDetails.mismatchError.actual.dword);
+
+                    break;
+                }
+                case ERROR_TYPE_SHA1_MISMATCH: {
+                    Format(
+                        errorMsg,
+                        1024,
+                        errorMsgFormat,
+                        ctx->errorDetails.mismatchError.expected.wchar,
+                        ctx->errorDetails.mismatchError.actual.wchar);
+
+                    free(ctx->errorDetails.mismatchError.expected.wchar);
+                    free(ctx->errorDetails.mismatchError.actual.wchar);
+
+                    break;
+                }
+                case ERROR_TYPE_SERIAL_START_SIGNATURE_MISMATCH:
+                case ERROR_TYPE_SERIAL_FINAL_SIGNATURE_MISMATCH: {
+                    Format(
+                        errorMsg,
+                        1024,
+                        errorMsgFormat,
+                        ctx->errorDetails.mismatchError.expected.u64,
+                        ctx->errorDetails.mismatchError.actual.u64);
+
+                    break;
+                }
+            }
+
+            free(ctx);
+
+            MessageBoxW(g_mainWindow, errorMsg, errorDialogTitle, MB_ICONERROR | MB_OK);
+
+            return 0;
+        }
         case WM_INITDIALOG: {
             g_mainWindow = hwnd;
 
@@ -845,6 +879,37 @@ INT_PTR CALLBACK MainDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                     SetApplicationMode(APPLICATION_MODE_RECEIVE_MODE);
 
                     return TRUE;
+                }
+                case IDBUTTON_EXECUTE: {
+                    switch (g_currentApplicationMode)
+                    {
+                        case APPLICATION_MODE_SEND_MODE: {
+                            wchar_t *selectedPortName;
+                            if (!GetSelectedPortName(&selectedPortName))
+                            {
+                                PleaseSpecifyPortError();
+
+                                return TRUE;
+                            }
+
+                            wchar_t filePath[MAX_PATH];
+                            GetTargetPath(filePath);
+                            if (wcslen(filePath) == 0)
+                            {
+                                PleaseSpecifyFilePathError();
+
+                                return TRUE;
+                            }
+
+                            SendFile(selectedPortName, filePath);
+
+                            return TRUE;
+                        }
+                        case APPLICATION_MODE_RECEIVE_MODE: {
+
+                            return TRUE;
+                        }
+                    }
                 }
             }
         }
