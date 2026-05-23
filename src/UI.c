@@ -15,32 +15,6 @@
 #define WM_SFTT_SHOW_ERROR_DIALOG WM_USER + 1
 #define WM_SFTT_ENABLE_CONTROL WM_USER + 2
 
-#define BAUD_RATE_SETTING_WINDOW_CLASS_NAME L"SFTT_BAUD_RATE_SETTING_WINDOW_CLASS"
-#define BAUD_RATE_SETTING_WINDOW_TITLE L"Baud Rate Setting"
-#define BAUD_RATE_SETTING_WINDOW_WIDTH 232
-#define BAUD_RATE_SETTING_WINDOW_HEIGHT 89
-
-#define BAUD_RATE_LABEL_TEXT L"Baud Rate:"
-#define BAUD_RATE_LABEL_TEXT_LENGTH 10
-#define BAUD_RATE_LABEL_X 5
-#define BAUD_RATE_LABEL_Y 7
-
-#define BAUD_RATE_TEXTBOX_X 72
-#define BAUD_RATE_TEXTBOX_Y 5
-#define BAUD_RATE_TEXTBOX_WIDTH 148
-#define BAUD_RATE_TEXTBOX_HEIGHT 20
-#define BAUD_RATE_TEXTBOX_ID 110
-
-#define BAUD_RATE_OK_BUTTON_LABEL L"OK"
-#define BAUD_RATE_OK_BUTTON_X 77
-#define BAUD_RATE_OK_BUTTON_Y 35
-#define BAUD_RATE_OK_BUTTON_WIDTH 70
-#define BAUD_RATE_OK_BUTTON_HEIGHT 20
-#define BAUD_RATE_OK_BUTTON_ID 111
-
-#define PLEASE_ENTER_BAUD_RATE_MSG L"Please enter a baud rate."
-#define BAUD_RATE_OUT_OF_RANGE_MSG L"The baud rate is out of range."
-
 static HINSTANCE g_mainInstance;
 
 static HWND g_mainWindow;
@@ -56,8 +30,6 @@ static HWND g_executeButton;
 
 static wchar_t *g_lastSendModeTargetText = NULL;
 static wchar_t *g_lastReceiveModeTargetText = NULL;
-
-static HWND g_baudRateSettingWindow;
 
 static ApplicationMode g_currentApplicationMode;
 
@@ -337,126 +309,80 @@ void ShowVersion(void)
     MessageBoxW(g_mainWindow, versionText, dialogTitle, MB_ICONINFORMATION | MB_OK);
 }
 
-LRESULT CALLBACK BaudRateSettingWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK BaudRateSettingDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
+    (void)lParam;
+
     switch (wMsg)
     {
-        case WM_DESTROY: {
-            EnableWindow(g_mainWindow, TRUE);
-            SetForegroundWindow(g_mainWindow);
+        case WM_INITDIALOG: {
+            wchar_t textBoxInitContent[16];
+            Format(textBoxInitContent, 16, L"%lu", GetCurrentBaudRate());
+            SetWindowTextW(GetDlgItem(hwnd, IDEDIT_BRS_NEW_BAUD_RATE), textBoxInitContent);
 
-            return 0;
+            return TRUE;
         }
         case WM_COMMAND: {
             switch (LOWORD(wParam))
             {
-                case BAUD_RATE_OK_BUTTON_ID: {
+                case IDCANCEL: {
+                    EndDialog(hwnd, 0);
+
+                    return TRUE;
+                }
+                case IDBUTTON_BRS_CANCEL: {
+                    EndDialog(hwnd, 0);
+
+                    return TRUE;
+                }
+                case IDBUTTON_BRS_OK: {
                     BOOL result;
-                    UINT newBaudRate = GetDlgItemInt(g_baudRateSettingWindow, BAUD_RATE_TEXTBOX_ID, &result, FALSE);
+                    UINT newBaudRate = GetDlgItemInt(hwnd, IDEDIT_BRS_NEW_BAUD_RATE, &result, FALSE);
 
                     if (!result)
                     {
-                        MessageBoxW(
-                            g_baudRateSettingWindow,
-                            PLEASE_ENTER_BAUD_RATE_MSG,
-                            BAUD_RATE_SETTING_WINDOW_TITLE,
-                            MB_ICONERROR | MB_OK);
+                        wchar_t errorDialogTitle[64];
+                        LoadStringW(g_mainInstance, IDSTRING_BRS_ERROR_DIALOG_TITLE, errorDialogTitle, 64);
+                        wchar_t errorMsg[128];
+                        LoadStringW(g_mainInstance, IDSTRING_BRS_BAUD_RATE_EMPTY_ERROR, errorMsg, 128);
 
-                        return 0;
+                        MessageBoxW(NULL, errorMsg, errorDialogTitle, MB_ICONERROR | MB_OK);
+
+                        return TRUE;
                     }
 
                     if (newBaudRate <= 0 || newBaudRate > BAUD_RATE_MAX)
                     {
-                        MessageBoxW(
-                            g_baudRateSettingWindow,
-                            BAUD_RATE_OUT_OF_RANGE_MSG,
-                            BAUD_RATE_SETTING_WINDOW_TITLE,
-                            MB_ICONERROR | MB_OK);
+                        wchar_t errorDialogTitle[64];
+                        LoadStringW(g_mainInstance, IDSTRING_BRS_ERROR_DIALOG_TITLE, errorDialogTitle, 64);
+                        wchar_t errorMsg[128];
+                        LoadStringW(g_mainInstance, IDSTRING_BRS_BAUD_RATE_OUT_OF_RANGE_ERROR, errorMsg, 128);
 
-                        return 0;
+                        MessageBoxW(NULL, errorMsg, errorDialogTitle, MB_ICONERROR | MB_OK);
+
+                        return TRUE;
                     }
 
                     SetBaudRate((DWORD)newBaudRate);
 
-                    PostMessageW(g_baudRateSettingWindow, WM_CLOSE, (WPARAM)0, (LPARAM)0);
+                    EndDialog(hwnd, 0);
 
-                    return 0;
-                }
-                default: {
-                    return DefWindowProcW(hwnd, wMsg, wParam, lParam);
+                    return TRUE;
                 }
             }
         }
-        default: {
-            return DefWindowProcW(hwnd, wMsg, wParam, lParam);
-        }
     }
+
+    return FALSE;
 }
 
 void ShowBaudRateSettingWindow(void)
 {
-    /*WNDCLASSEXW wndClass = {0};
-    wndClass.cbSize = sizeof(wndClass);
-    wndClass.lpszClassName = BAUD_RATE_SETTING_WINDOW_CLASS_NAME;
-    wndClass.hInstance = g_mainInstance;
-    wndClass.style = CS_VREDRAW | CS_HREDRAW;
-    wndClass.lpfnWndProc = BaudRateSettingWindowWndProc;
-
-    RegisterClassExW(&wndClass);
-
-    EnableWindow(g_mainWindow, FALSE);
-
-    RECT mainWindowRect;
-    GetWindowRect(g_mainWindow, &mainWindowRect);
-
-    g_baudRateSettingWindow = CreateWindowW(
-        BAUD_RATE_SETTING_WINDOW_CLASS_NAME,
-        BAUD_RATE_SETTING_WINDOW_TITLE,
-        WS_CAPTION | WS_SYSMENU | WS_POPUPWINDOW | WS_DLGFRAME,
-        mainWindowRect.left,
-        mainWindowRect.top,
-        BAUD_RATE_SETTING_WINDOW_WIDTH,
-        BAUD_RATE_SETTING_WINDOW_HEIGHT,
-        NULL,
-        NULL,
+    DialogBoxW(
         g_mainInstance,
-        NULL);
-
-    wchar_t textBoxInitContent[7];
-    Format(textBoxInitContent, 7, L"%lu", GetCurrentBaudRate());
-
-    HWND baudRateTextBox = CreateWindowW(
-        L"EDIT",
-        textBoxInitContent,
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_NUMBER,
-        BAUD_RATE_TEXTBOX_X,
-        BAUD_RATE_TEXTBOX_Y,
-        BAUD_RATE_TEXTBOX_WIDTH,
-        BAUD_RATE_TEXTBOX_HEIGHT,
-        g_baudRateSettingWindow,
-        (HMENU)BAUD_RATE_TEXTBOX_ID,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(baudRateTextBox, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    HWND baudRateOKButton = CreateWindowW(
-        L"BUTTON",
-        BAUD_RATE_OK_BUTTON_LABEL,
-        WS_CHILD | WS_VISIBLE,
-        BAUD_RATE_OK_BUTTON_X,
-        BAUD_RATE_OK_BUTTON_Y,
-        BAUD_RATE_OK_BUTTON_WIDTH,
-        BAUD_RATE_OK_BUTTON_HEIGHT,
-        g_baudRateSettingWindow,
-        (HMENU)BAUD_RATE_OK_BUTTON_ID,
-        g_mainInstance,
-        NULL);
-
-    SendMessageW(baudRateOKButton, WM_SETFONT, (WPARAM)g_uiFont, (LPARAM)1);
-
-    ShowWindow(g_baudRateSettingWindow, SW_SHOWNORMAL);
-    UpdateWindow(g_baudRateSettingWindow);*/
+        MAKEINTRESOURCEW(IDDIALOG_BAUD_RATE_SETTING),
+        g_mainWindow,
+        BaudRateSettingDialogDlgProc);
 }
 
 INT_PTR CALLBACK MainDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
