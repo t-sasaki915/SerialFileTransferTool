@@ -13,10 +13,7 @@
 #include "Util.h"
 
 #define WM_SFTT_SHOW_ERROR_DIALOG WM_USER + 1
-#define WM_SFTT_ENABLE_CONTROL WM_USER + 5
-#define WM_SFTT_UI_START_SENDING WM_USER + 2
-#define WM_SFTT_UI_FINISH_SENDING WM_USER + 3
-#define WM_SFTT_ENABLE_START_RECEIVING_BUTTON WM_USER + 4
+#define WM_SFTT_ENABLE_CONTROL WM_USER + 2
 
 #define BAUD_RATE_SETTING_WINDOW_CLASS_NAME L"SFTT_BAUD_RATE_SETTING_WINDOW_CLASS"
 #define BAUD_RATE_SETTING_WINDOW_TITLE L"Baud Rate Setting"
@@ -244,16 +241,6 @@ void GetTargetPath(wchar_t *resultPtr)
     GetWindowTextW(g_targetPathTextBox, resultPtr, MAX_PATH);
 }
 
-void EnableSetModeControls(BOOL enable)
-{
-    EnableWindow(g_portSelectComboBox, enable);
-    EnableWindow(g_portSelectUpdateButton, enable);
-    EnableWindow(g_modeChangeButtonReceiveMode, enable);
-    EnableWindow(g_targetPathTextBox, enable);
-    EnableWindow(g_targetBrowseButton, enable);
-    EnableWindow(g_executeButton, enable);
-}
-
 void RequestErrorDialog(ErrorContext *errorContext)
 {
     SendMessageW(g_mainWindow, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)errorContext, (LPARAM)0);
@@ -314,23 +301,16 @@ void ResetProgressBar(void)
     SendMessageW(g_mainWindowStatusBarProgressBar, PBM_SETPOS, (WPARAM)0, (LPARAM)0);
 }
 
-void UIStartSending(void)
+void EnableSendModeControls(BOOL enable)
 {
-    SendMessageW(g_mainWindow, WM_SFTT_UI_START_SENDING, (WPARAM)0, (LPARAM)0);
-}
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_portSelectComboBox, (LPARAM)enable);
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_portSelectUpdateButton, (LPARAM)enable);
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_modeChangeButtonReceiveMode, (LPARAM)enable);
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_targetPathTextBox, (LPARAM)enable);
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_targetBrowseButton, (LPARAM)enable);
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_executeButton, (LPARAM)enable);
 
-void UIFinishSending(void)
-{
-    SendMessageW(g_mainWindow, WM_SFTT_UI_FINISH_SENDING, (WPARAM)0, (LPARAM)0);
-}
-
-void EnableAllControls(BOOL enable)
-{
-    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_portSelectComboBox, enable);
-    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_portSelectUpdateButton, enable);
-    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_modeChangeButtonReceiveMode, enable);
-
-    EnableExecuteButton(enable);
+    EnableBaudRateSettingButton(enable);
 }
 
 void EnableExecuteButton(BOOL enable)
@@ -479,41 +459,17 @@ void ShowBaudRateSettingWindow(void)
     UpdateWindow(g_baudRateSettingWindow);*/
 }
 
-LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
-{
-    switch (wMsg)
-    {
-        case WM_SFTT_UI_START_SENDING: {
-            EnableSetModeControls(FALSE);
-            SetStatusBarText(STATUS_BAR_STATUS_SENDING);
-
-            return 0;
-        }
-        case WM_SFTT_UI_FINISH_SENDING: {
-            EnableSetModeControls(TRUE);
-            SetStatusBarText(STATUS_BAR_STATUS_READY);
-
-            return 0;
-        }
-        case WM_SFTT_ENABLE_START_RECEIVING_BUTTON: {
-            BOOL enable = (BOOL)wParam;
-
-            EnableWindow(g_executeButton, enable);
-
-            return 0;
-        }
-        default: {
-            return DefWindowProcW(hwnd, wMsg, wParam, lParam);
-        }
-    }
-}
-
 INT_PTR CALLBACK MainDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
 {
     (void)lParam;
 
     switch (wMsg)
     {
+        case WM_SFTT_ENABLE_CONTROL: {
+            EnableWindow((HWND)wParam, (BOOL)lParam);
+
+            return 0;
+        }
         case WM_SFTT_SHOW_ERROR_DIALOG: {
             ErrorContext *ctx = (ErrorContext *)wParam;
 

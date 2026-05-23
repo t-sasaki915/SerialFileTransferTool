@@ -691,16 +691,16 @@ CleanUp:
         g_sendingFileName = NULL;
     }
 
-    UIFinishSending();
-    EnableBaudRateSettingButton(TRUE);
+    EnableSendModeControls(TRUE);
+    SetStatusBarText(STATUS_BAR_STATUS_READY);
 
     return 0;
 }
 
 void SendFile(wchar_t *portName, wchar_t *filePath)
 {
-    UIStartSending();
-    EnableBaudRateSettingButton(FALSE);
+    EnableSendModeControls(FALSE);
+    SetStatusBarText(STATUS_BAR_STATUS_SENDING);
 
     HANDLE handleFile =
         CreateFileW(filePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -708,8 +708,8 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
     {
         CannotOpenFileError(filePath);
 
-        UIFinishSending();
-        EnableBaudRateSettingButton(TRUE);
+        EnableSendModeControls(TRUE);
+        SetStatusBarText(STATUS_BAR_STATUS_READY);
         return;
     }
 
@@ -721,8 +721,8 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
 
         CloseHandle(handleFile);
 
-        UIFinishSending();
-        EnableBaudRateSettingButton(TRUE);
+        EnableSendModeControls(TRUE);
+        SetStatusBarText(STATUS_BAR_STATUS_READY);
         return;
     }
 
@@ -736,8 +736,8 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
 
         CloseHandle(handleFile);
 
-        UIFinishSending();
-        EnableBaudRateSettingButton(TRUE);
+        EnableSendModeControls(TRUE);
+        SetStatusBarText(STATUS_BAR_STATUS_READY);
         return;
     }
 

@@ -21,31 +21,21 @@ typedef enum
 
 void InitialiseUI(void);
 
-void SetApplicationMode(ApplicationMode appMode);
-
 void ShowMainWindow(void);
 
-void PaintMainWindow(void);
-
-void EraseWindowBackground(HWND hwnd, HDC hdc);
-
 void UpdatePortSelectList(void);
-
-BOOL GetSelectedPortName(wchar_t **resultPtr);
-
-BOOL BrowseFileToSend(wchar_t *resultPtr);
 
 void GetTargetPath(wchar_t *resultPtr);
 
 void RequestErrorDialog(ErrorContext *errorContext);
 
-void EnableReceiveModeControls(BOOL enable);
-
 void SetStatusBarText(StatusBarStatus status);
 
-void SetProgressBarRange(uint32_t max);
+void EnableReceiveModeControls(BOOL enable);
 
-void EnableSetModeControls(BOOL enable);
+void EnableSendModeControls(BOOL enable);
+
+void SetProgressBarRange(uint32_t max);
 
 void StepProgressBar(void);
 
@@ -53,13 +43,7 @@ void AddStepsToProgressBar(uint32_t steps);
 
 void ResetProgressBar(void);
 
-void UIStartSending(void);
-
-void UIFinishSending(void);
-
 void EnableExecuteButton(BOOL enable);
-
-void EnableBaudRateSettingButton(BOOL enable);
 
 void EnableBaudRateSettingButton(BOOL enable);
 
