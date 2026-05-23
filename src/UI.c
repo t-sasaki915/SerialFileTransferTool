@@ -13,64 +13,10 @@
 #include "Util.h"
 
 #define WM_SFTT_SHOW_ERROR_DIALOG WM_USER + 1
+#define WM_SFTT_ENABLE_CONTROL WM_USER + 5
 #define WM_SFTT_UI_START_SENDING WM_USER + 2
 #define WM_SFTT_UI_FINISH_SENDING WM_USER + 3
 #define WM_SFTT_ENABLE_START_RECEIVING_BUTTON WM_USER + 4
-
-#define RECEIVE_DIRECTORY_BROWSE_BUTTON_LABEL L"Browse"
-#define RECEIVE_DIRECTORY_BROWSE_BUTTON_X 190
-#define RECEIVE_DIRECTORY_BROWSE_BUTTON_Y 76
-#define RECEIVE_DIRECTORY_BROWSE_BUTTON_WIDTH 70
-#define RECEIVE_DIRECTORY_BROWSE_BUTTON_HEIGHT 20
-#define RECEIVE_DIRECTORY_BROWSE_BUTTON_ID 103
-#define RECEIVE_DIRECTORY_BROWSE_DIALOG_TITLE L"Please select the directory in which received data will be stored"
-
-#define START_RECEIVING_BUTTON_LABEL_START L"Start Receiving"
-#define START_RECEIVING_BUTTON_LABEL_STOP L"Stop Receiving"
-#define START_RECEIVING_BUTTON_X 7
-#define START_RECEIVING_BUTTON_Y 103
-#define START_RECEIVING_BUTTON_WIDTH 253
-#define START_RECEIVING_BUTTON_HEIGHT 40
-#define START_RECEIVING_BUTTON_ID 104
-
-#define FILE_TO_SEND_LABEL_TEXT L"File:"
-#define FILE_TO_SEND_LABEL_TEXT_LENGTH 5
-#define FILE_TO_SEND_LABEL_X 8
-#define FILE_TO_SEND_LABEL_Y 79
-
-#define SEND_FILE_PATH_TEXTBOX_X 35
-#define SEND_FILE_PATH_TEXTBOX_Y 76
-#define SEND_FILE_PATH_TEXTBOX_WIDTH 148
-#define SEND_FILE_PATH_TEXTBOX_HEIGHT 20
-
-#define SEND_FILE_PATH_BROWSE_BUTTON_LABEL L"Browse"
-#define SEND_FILE_PATH_BROWSE_BUTTON_X 190
-#define SEND_FILE_PATH_BROWSE_BUTTON_Y 76
-#define SEND_FILE_PATH_BROWSE_BUTTON_WIDTH 70
-#define SEND_FILE_PATH_BROWSE_BUTTON_HEIGHT 20
-#define SEND_FILE_PATH_BROWSE_BUTTON_ID 105
-
-#define SEND_FILE_BUTTON_LABEL L"Send a File"
-#define SEND_FILE_BUTTON_X 7
-#define SEND_FILE_BUTTON_Y 103
-#define SEND_FILE_BUTTON_WIDTH 253
-#define SEND_FILE_BUTTON_HEIGHT 40
-#define SEND_FILE_BUTTON_ID 106
-
-#define STATUS_BAR_TEXT_READY L"Ready"
-#define STATUS_BAR_TEXT_SENDING L"Sending"
-#define STATUS_BAR_TEXT_RECEIVING L"Receiving"
-
-#define FILE_MENU_LABEL L"File (&F)"
-
-#define FILE_MENU_VERSION_LABEL L"Version (&V)"
-#define FILE_MENU_VERSION_ID 107
-
-#define FILE_MENU_EXIT_LABEL L"Exit (&X)"
-#define FILE_MENU_EXIT_ID 108
-
-#define BAUD_RATE_MENU_LABEL L"Baud Rate (&B)"
-#define BAUD_RATE_MENU_ID 109
 
 #define BAUD_RATE_SETTING_WINDOW_CLASS_NAME L"SFTT_BAUD_RATE_SETTING_WINDOW_CLASS"
 #define BAUD_RATE_SETTING_WINDOW_TITLE L"Baud Rate Setting"
@@ -110,17 +56,9 @@ static HWND g_modeChangeButtonReceiveMode;
 static HWND g_targetPathTextBox;
 static HWND g_targetBrowseButton;
 static HWND g_executeButton;
-static HWND g_startReceivingButton;
-static HWND g_receiveDirectoryTextBox;
-static HWND g_receiveDirectoryBrowseButton;
-static HWND g_sendFilePathTextBox;
-static HWND g_sendFilePathBrowseButton;
-static HWND g_sendFileButton;
 
 static wchar_t *g_lastSendModeTargetText = NULL;
 static wchar_t *g_lastReceiveModeTargetText = NULL;
-
-static HMENU g_mainWindowMenu;
 
 static HWND g_baudRateSettingWindow;
 
@@ -210,7 +148,7 @@ void SetApplicationMode(ApplicationMode newAppMode)
         case APPLICATION_MODE_RECEIVE_MODE: {
             LoadStringW(g_mainInstance, IDSTRING_MAIN_DIALOG_TITLE_RECEIVE_MODE, newMainWindowTitle, 256);
             LoadStringW(g_mainInstance, IDSTRING_TARGET_LABEL_RECEIVE_MODE, newTargetLabelText, 256);
-            LoadStringW(g_mainInstance, IDSTRING_EXECUTE_BUTTON_LABEL_RECEIVE_MODE, newExecuteButtonText, 256);
+            LoadStringW(g_mainInstance, IDSTRING_EXECUTE_BUTTON_LABEL_RECEIVE_MODE_START, newExecuteButtonText, 256);
 
             wchar_t currentPath[MAX_PATH];
             GetTargetPath(currentPath);
@@ -262,7 +200,7 @@ BOOL BrowseFileToSend(wchar_t *resultPtr)
     ofn.hwndOwner = g_mainWindow;
     ofn.lpstrFile = resultPtr;
     ofn.nMaxFile = MAX_PATH;
-    ofn.lpstrFilter = L"All Files\0*.*\0";
+    ofn.lpstrFilter = L"All Files\0*.*";
     ofn.nFilterIndex = 1;
     ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_EXPLORER;
 
@@ -271,10 +209,13 @@ BOOL BrowseFileToSend(wchar_t *resultPtr)
 
 BOOL BrowseReceiveDirectory(wchar_t *resultPtr)
 {
+    wchar_t title[512];
+    LoadStringW(g_mainInstance, IDSTRING_RECEIVE_DESTINATION_BROWSE_DIALOG_TITLE, title, 512);
+
     BROWSEINFOW bi = {0};
     bi.hwndOwner = g_mainWindow;
     bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_USENEWUI;
-    bi.lpszTitle = RECEIVE_DIRECTORY_BROWSE_DIALOG_TITLE;
+    bi.lpszTitle = title;
 
     LPITEMIDLIST pidl = SHBrowseForFolderW(&bi);
 
@@ -293,9 +234,9 @@ BOOL BrowseReceiveDirectory(wchar_t *resultPtr)
     return FALSE;
 }
 
-void UpdateSendFilePathTextbox(wchar_t *filePath)
+void UpdateTargetPath(wchar_t *newPath)
 {
-    SetWindowTextW(g_sendFilePathTextBox, filePath);
+    SetWindowTextW(g_targetPathTextBox, newPath);
 }
 
 void GetTargetPath(wchar_t *resultPtr)
@@ -303,24 +244,14 @@ void GetTargetPath(wchar_t *resultPtr)
     GetWindowTextW(g_targetPathTextBox, resultPtr, MAX_PATH);
 }
 
-void UpdateReceiveDirectoryTextbox(wchar_t *dirPath)
-{
-    SetWindowTextW(g_receiveDirectoryTextBox, dirPath);
-}
-
-void GetReceiveDirectory(wchar_t *resultPtr)
-{
-    GetWindowTextW(g_receiveDirectoryTextBox, resultPtr, MAX_PATH);
-}
-
 void EnableSetModeControls(BOOL enable)
 {
     EnableWindow(g_portSelectComboBox, enable);
     EnableWindow(g_portSelectUpdateButton, enable);
     EnableWindow(g_modeChangeButtonReceiveMode, enable);
-    EnableWindow(g_sendFilePathTextBox, enable);
-    EnableWindow(g_sendFilePathBrowseButton, enable);
-    EnableWindow(g_sendFileButton, enable);
+    EnableWindow(g_targetPathTextBox, enable);
+    EnableWindow(g_targetBrowseButton, enable);
+    EnableWindow(g_executeButton, enable);
 }
 
 void RequestErrorDialog(ErrorContext *errorContext)
@@ -328,46 +259,35 @@ void RequestErrorDialog(ErrorContext *errorContext)
     SendMessageW(g_mainWindow, WM_SFTT_SHOW_ERROR_DIALOG, (WPARAM)errorContext, (LPARAM)0);
 }
 
-void UIStopReceiving(void)
+void EnableBaudRateSettingButton(BOOL enable)
 {
-    SetWindowTextW(g_startReceivingButton, START_RECEIVING_BUTTON_LABEL_START);
-
-    EnableWindow(g_portSelectComboBox, TRUE);
-    EnableWindow(g_portSelectUpdateButton, TRUE);
-    EnableWindow(g_modeChangeButtonSendMode, TRUE);
-    EnableWindow(g_receiveDirectoryBrowseButton, TRUE);
-    EnableWindow(g_receiveDirectoryTextBox, TRUE);
+    EnableMenuItem(GetMenu(g_mainWindow), IDMENUENTRY_BAUDRATE, MF_BYCOMMAND | (enable ? MF_ENABLED : MF_GRAYED));
+    DrawMenuBar(g_mainWindow);
 }
 
-void UIStartReceiving(void)
+void EnableReceiveModeControls(BOOL enable)
 {
-    SetWindowTextW(g_startReceivingButton, START_RECEIVING_BUTTON_LABEL_STOP);
+    wchar_t newExecuteButtonLabel[128];
+    LoadStringW(
+        g_mainInstance,
+        enable ? IDSTRING_EXECUTE_BUTTON_LABEL_RECEIVE_MODE_START : IDSTRING_EXECUTE_BUTTON_LABEL_RECEIVE_MODE_STOP,
+        newExecuteButtonLabel,
+        128);
+    SetWindowTextW(g_executeButton, newExecuteButtonLabel);
 
-    EnableWindow(g_portSelectComboBox, FALSE);
-    EnableWindow(g_portSelectUpdateButton, FALSE);
-    EnableWindow(g_modeChangeButtonSendMode, FALSE);
-    EnableWindow(g_receiveDirectoryBrowseButton, FALSE);
-    EnableWindow(g_receiveDirectoryTextBox, FALSE);
+    EnableWindow(g_portSelectComboBox, enable);
+    EnableWindow(g_portSelectUpdateButton, enable);
+    EnableWindow(g_modeChangeButtonSendMode, enable);
+    EnableWindow(g_targetBrowseButton, enable);
+    EnableWindow(g_targetPathTextBox, enable);
+
+    EnableBaudRateSettingButton(enable);
 }
 
 void SetStatusBarText(StatusBarStatus status)
 {
-    wchar_t *newStatusBarText = L"";
-    switch (status)
-    {
-        case STATUS_BAR_STATUS_READY: {
-            newStatusBarText = STATUS_BAR_TEXT_READY;
-            break;
-        }
-        case STATUS_BAR_STATUS_RECEIVING: {
-            newStatusBarText = STATUS_BAR_TEXT_RECEIVING;
-            break;
-        }
-        case STATUS_BAR_STATUS_SENDING: {
-            newStatusBarText = STATUS_BAR_TEXT_SENDING;
-            break;
-        }
-    }
+    wchar_t newStatusBarText[64];
+    LoadStringW(g_mainInstance, status, newStatusBarText, 64);
 
     SendMessageW(g_mainWindowStatusBar, SB_SETTEXTW, 0 | 0, (LPARAM)newStatusBarText);
 }
@@ -404,9 +324,18 @@ void UIFinishSending(void)
     SendMessageW(g_mainWindow, WM_SFTT_UI_FINISH_SENDING, (WPARAM)0, (LPARAM)0);
 }
 
-void EnableStartReceivingButton(BOOL enable)
+void EnableAllControls(BOOL enable)
 {
-    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_START_RECEIVING_BUTTON, (WPARAM)enable, (LPARAM)0);
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_portSelectComboBox, enable);
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_portSelectUpdateButton, enable);
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_modeChangeButtonReceiveMode, enable);
+
+    EnableExecuteButton(enable);
+}
+
+void EnableExecuteButton(BOOL enable)
+{
+    SendMessageW(g_mainWindow, WM_SFTT_ENABLE_CONTROL, (WPARAM)g_executeButton, (LPARAM)enable);
 }
 
 void ShowVersion(void)
@@ -426,12 +355,6 @@ void ShowVersion(void)
     LoadStringW(g_mainInstance, IDSTRING_VERSION_DIALOG_TITLE, dialogTitle, 128);
 
     MessageBoxW(g_mainWindow, versionText, dialogTitle, MB_ICONINFORMATION | MB_OK);
-}
-
-void EnableBaudRateSettingButton(BOOL enable)
-{
-    EnableMenuItem(g_mainWindowMenu, BAUD_RATE_MENU_ID, MF_BYCOMMAND | (enable ? MF_ENABLED : MF_GRAYED));
-    DrawMenuBar(g_mainWindow);
 }
 
 LRESULT CALLBACK BaudRateSettingWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM lParam)
@@ -560,15 +483,6 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 {
     switch (wMsg)
     {
-        case WM_SFTT_SHOW_ERROR_DIALOG: {
-            wchar_t *msg = (wchar_t *)wParam;
-
-            MessageBoxW(g_mainWindow, msg, L"SFTT", MB_ICONERROR | MB_OK);
-
-            free(msg);
-
-            return 0;
-        }
         case WM_SFTT_UI_START_SENDING: {
             EnableSetModeControls(FALSE);
             SetStatusBarText(STATUS_BAR_STATUS_SENDING);
@@ -584,104 +498,9 @@ LRESULT CALLBACK MainWindowWndProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
         case WM_SFTT_ENABLE_START_RECEIVING_BUTTON: {
             BOOL enable = (BOOL)wParam;
 
-            EnableWindow(g_startReceivingButton, enable);
+            EnableWindow(g_executeButton, enable);
 
             return 0;
-        }
-        case WM_COMMAND: {
-            switch (LOWORD(wParam))
-            {
-                case START_RECEIVING_BUTTON_ID: {
-                    if (IsReceiving())
-                    {
-                        StopReceiving();
-                        UIStopReceiving();
-                        EnableBaudRateSettingButton(TRUE);
-                    }
-                    else
-                    {
-                        wchar_t *selectedPortName;
-                        if (!GetSelectedPortName(&selectedPortName))
-                        {
-                            PleaseSpecifyPortError();
-
-                            return 0;
-                        }
-
-                        wchar_t receiveDir[MAX_PATH];
-                        GetReceiveDirectory(receiveDir);
-                        if (wcslen(receiveDir) == 0)
-                        {
-                            PleaseSpecifyDirectoryError();
-
-                            return 0;
-                        }
-
-                        if (StartReceiving(selectedPortName, receiveDir))
-                        {
-                            UIStartReceiving();
-                            EnableBaudRateSettingButton(FALSE);
-                        }
-                        else
-                        {
-                            StopReceiving();
-                            UIStopReceiving();
-                            EnableBaudRateSettingButton(TRUE);
-
-                            CannotOpenCOMPortError(selectedPortName);
-
-                            return 0;
-                        }
-                    }
-
-                    return 0;
-                }
-                case SEND_FILE_PATH_BROWSE_BUTTON_ID: {
-                    wchar_t filePath[MAX_PATH] = L"";
-
-                    if (BrowseFileToSend(filePath))
-                    {
-                        UpdateSendFilePathTextbox(filePath);
-                    }
-
-                    return 0;
-                }
-                case RECEIVE_DIRECTORY_BROWSE_BUTTON_ID: {
-                    wchar_t dirPath[MAX_PATH] = L"";
-
-                    if (BrowseReceiveDirectory(dirPath))
-                    {
-                        UpdateReceiveDirectoryTextbox(dirPath);
-                    }
-
-                    return 0;
-                }
-                case SEND_FILE_BUTTON_ID: {
-                    wchar_t *selectedPortName;
-                    if (!GetSelectedPortName(&selectedPortName))
-                    {
-                        PleaseSpecifyPortError();
-
-                        return 0;
-                    }
-
-                    wchar_t filePath[MAX_PATH];
-                    GetTargetPath(filePath);
-                    if (wcslen(filePath) == 0)
-                    {
-                        PleaseSpecifyFilePathError();
-
-                        return 0;
-                    }
-
-                    SendFile(selectedPortName, filePath);
-
-                    return 0;
-                }
-                default: {
-                    return DefWindowProcW(hwnd, wMsg, wParam, lParam);
-                }
-            }
         }
         default: {
             return DefWindowProcW(hwnd, wMsg, wParam, lParam);
@@ -880,6 +699,34 @@ INT_PTR CALLBACK MainDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
                     return TRUE;
                 }
+                case IDBUTTON_BROWSE_TARGET: {
+                    wchar_t newPath[MAX_PATH] = {0};
+
+                    switch (g_currentApplicationMode)
+                    {
+                        case APPLICATION_MODE_SEND_MODE: {
+                            if (!BrowseFileToSend(newPath))
+                            {
+                                goto Return;
+                            }
+
+                            break;
+                        }
+                        case APPLICATION_MODE_RECEIVE_MODE: {
+                            if (!BrowseReceiveDirectory(newPath))
+                            {
+                                goto Return;
+                            }
+
+                            break;
+                        }
+                    }
+
+                    UpdateTargetPath(newPath);
+
+                Return:
+                    return TRUE;
+                }
                 case IDBUTTON_EXECUTE: {
                     switch (g_currentApplicationMode)
                     {
@@ -906,6 +753,44 @@ INT_PTR CALLBACK MainDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
                             return TRUE;
                         }
                         case APPLICATION_MODE_RECEIVE_MODE: {
+                            if (IsReceiving())
+                            {
+                                StopReceiving();
+                                EnableReceiveModeControls(TRUE);
+                            }
+                            else
+                            {
+                                wchar_t *selectedPortName;
+                                if (!GetSelectedPortName(&selectedPortName))
+                                {
+                                    PleaseSpecifyPortError();
+
+                                    return TRUE;
+                                }
+
+                                wchar_t receiveDir[MAX_PATH];
+                                GetTargetPath(receiveDir);
+                                if (wcslen(receiveDir) == 0)
+                                {
+                                    PleaseSpecifyDirectoryError();
+
+                                    return TRUE;
+                                }
+
+                                if (StartReceiving(selectedPortName, receiveDir))
+                                {
+                                    EnableReceiveModeControls(FALSE);
+                                }
+                                else
+                                {
+                                    StopReceiving();
+                                    EnableReceiveModeControls(TRUE);
+
+                                    CannotOpenCOMPortError(selectedPortName);
+
+                                    return TRUE;
+                                }
+                            }
 
                             return TRUE;
                         }

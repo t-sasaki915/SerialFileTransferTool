@@ -229,7 +229,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                 }
 
                 SetStatusBarText(STATUS_BAR_STATUS_RECEIVING);
-                EnableStartReceivingButton(FALSE);
+                EnableExecuteButton(FALSE);
 
                 uint64_t readBuffer[3];
                 DWORD bytesRead;
@@ -496,7 +496,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                 StepProgressBar();
 
                 SetStatusBarText(STATUS_BAR_STATUS_READY);
-                EnableStartReceivingButton(TRUE);
+                EnableExecuteButton(TRUE);
 
                 CleanupCOMPort();
 
@@ -507,7 +507,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
     CleanUp:
         CleanupCOMPort();
         SetStatusBarText(STATUS_BAR_STATUS_READY);
-        EnableStartReceivingButton(TRUE);
+        EnableExecuteButton(TRUE);
     }
 
     return 0;

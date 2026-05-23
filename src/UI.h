@@ -14,9 +14,9 @@ typedef enum
 
 typedef enum
 {
-    STATUS_BAR_STATUS_READY,
-    STATUS_BAR_STATUS_SENDING,
-    STATUS_BAR_STATUS_RECEIVING
+    STATUS_BAR_STATUS_READY = IDSTRING_STATUSBAR_TEXT_READY,
+    STATUS_BAR_STATUS_SENDING = IDSTRING_STATUSBAR_TEXT_SENDING,
+    STATUS_BAR_STATUS_RECEIVING = IDSTRING_STATUSBAR_TEXT_RECEIVING
 } StatusBarStatus;
 
 void InitialiseUI(void);
@@ -35,15 +35,11 @@ BOOL GetSelectedPortName(wchar_t **resultPtr);
 
 BOOL BrowseFileToSend(wchar_t *resultPtr);
 
-void UpdateSendFilePathTextbox(wchar_t *filePath);
-
 void GetTargetPath(wchar_t *resultPtr);
 
 void RequestErrorDialog(ErrorContext *errorContext);
 
-void UIStopReceiving(void);
-
-void UIStartReceiving(void);
+void EnableReceiveModeControls(BOOL enable);
 
 void SetStatusBarText(StatusBarStatus status);
 
@@ -61,7 +57,9 @@ void UIStartSending(void);
 
 void UIFinishSending(void);
 
-void EnableStartReceivingButton(BOOL enable);
+void EnableExecuteButton(BOOL enable);
+
+void EnableBaudRateSettingButton(BOOL enable);
 
 void EnableBaudRateSettingButton(BOOL enable);
 
