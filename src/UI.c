@@ -34,12 +34,12 @@ static wchar_t *g_lastReceiveModeTargetText = NULL;
 
 static ApplicationMode g_currentApplicationMode;
 
-void InitialiseUI(void)
+void InitialiseUI(HINSTANCE hInstance)
 {
     InitCommonControls();
     OleInitialize(NULL);
 
-    g_mainInstance = GetModuleHandleW(NULL);
+    g_mainInstance = hInstance;
 
     g_appIcon = LoadIconW(g_mainInstance, MAKEINTRESOURCEW(IDICON_APP_ICON));
 

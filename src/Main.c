@@ -4,11 +4,15 @@
 #include "UI.h"
 #include "Util.h"
 
-int main(void)
+int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
+    (void)hPrevInstance;
+    (void)lpCmdLine;
+    (void)nShowCmd;
+
     InitialiseFormatFunction();
     InitialiseSerial();
-    InitialiseUI();
+    InitialiseUI(hInstance);
 
     ShowMainWindow();
 

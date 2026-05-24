@@ -19,7 +19,7 @@ typedef enum
     STATUS_BAR_STATUS_RECEIVING = IDSTRING_STATUSBAR_TEXT_RECEIVING
 } StatusBarStatus;
 
-void InitialiseUI(void);
+void InitialiseUI(HINSTANCE hInstance);
 
 void ShowMainWindow(void);
 
