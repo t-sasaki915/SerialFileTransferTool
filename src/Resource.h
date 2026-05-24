@@ -3,6 +3,10 @@
 
 #include <windows.h>
 
+#define SFTT_VERSION "0.1.0.0"
+#define SFTT_LICENCE "MIT Licence"
+#define SFTT_GITHUB "https://github.com/t-sasaki915/SerialFileTransferTool"
+
 #define MAIN_DIALOG_WIDTH 190
 
 #define IDDIALOG_MAIN_DIALOG 101

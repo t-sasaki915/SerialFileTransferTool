@@ -543,6 +543,11 @@ INT_PTR CALLBACK MainDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
 
             return TRUE;
         }
+        case WM_SIZE: {
+            SendMessageW(g_mainWindowStatusBar, wMsg, wParam, lParam);
+
+            return TRUE;
+        }
         case WM_COMMAND: {
             switch (LOWORD(wParam))
             {
