@@ -16,6 +16,7 @@
 #define WM_SFTT_ENABLE_CONTROL WM_USER + 2
 
 static HINSTANCE g_mainInstance;
+static HICON g_appIcon;
 
 static HWND g_mainWindow;
 static HWND g_mainWindowStatusBar;
@@ -39,6 +40,8 @@ void InitialiseUI(void)
     OleInitialize(NULL);
 
     g_mainInstance = GetModuleHandleW(NULL);
+
+    g_appIcon = LoadIconW(g_mainInstance, MAKEINTRESOURCEW(IDICON_APP_ICON));
 
     g_lastSendModeTargetText = _wcsdup(L"");
     g_lastReceiveModeTargetText = _wcsdup(L"");
@@ -485,6 +488,9 @@ INT_PTR CALLBACK MainDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
         case WM_INITDIALOG: {
             g_mainWindow = hwnd;
 
+            SendMessageW(g_mainWindow, WM_SETICON, ICON_SMALL, (LPARAM)g_appIcon);
+            SendMessageW(g_mainWindow, WM_SETICON, ICON_BIG, (LPARAM)g_appIcon);
+
             g_mainWindowStatusBar = CreateWindowW(
                 STATUSCLASSNAMEW,
                 NULL,
@@ -708,5 +714,10 @@ void FinaliseUI(void)
     {
         free(g_lastReceiveModeTargetText);
         g_lastReceiveModeTargetText = NULL;
+    }
+    if (g_appIcon != NULL)
+    {
+        DestroyIcon(g_appIcon);
+        g_appIcon = NULL;
     }
 }
