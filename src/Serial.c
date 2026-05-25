@@ -165,29 +165,11 @@ void StopReceiving(void)
         g_receiverThreadHandle = INVALID_HANDLE_VALUE;
     }
 
-    if (g_receivingCOMPortHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_receivingCOMPortHandle);
-        g_receivingCOMPortHandle = INVALID_HANDLE_VALUE;
-    }
+    S_CLOSEHANDLE(g_receivingCOMPortHandle);
+    S_CLOSEHANDLE(g_receivingFileHandle);
 
-    if (g_receivingFileHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_receivingFileHandle);
-        g_receivingFileHandle = INVALID_HANDLE_VALUE;
-    }
-
-    if (g_receiveDirectory != NULL)
-    {
-        free(g_receiveDirectory);
-        g_receiveDirectory = NULL;
-    }
-
-    if (g_receivingFileName != NULL)
-    {
-        free(g_receivingFileName);
-        g_receivingFileName = NULL;
-    }
+    S_FREE(g_receiveDirectory);
+    S_FREE(g_receivingFileName);
 }
 
 void CleanupCOMPort(void)
@@ -289,22 +271,13 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                     goto CleanUp;
                 }
 
-                if (g_receivingFileName != NULL)
-                {
-                    free(g_receivingFileName);
-                    g_receivingFileName = NULL;
-                }
+                S_FREE(g_receivingFileName);
                 g_receivingFileName = readBuffer;
 
                 wchar_t receivingFilePath[MAX_PATH];
                 Format(receivingFilePath, MAX_PATH, L"%ls\\%ls", g_receiveDirectory, g_receivingFileName);
 
-                if (g_receivingFileHandle != INVALID_HANDLE_VALUE)
-                {
-                    CloseHandle(g_receivingFileHandle);
-                    g_receivingFileHandle = NULL;
-                }
-
+                S_CLOSEHANDLE(g_receivingFileHandle);
                 g_receivingFileHandle = CreateFileW(
                     receivingFilePath,
                     GENERIC_READ | GENERIC_WRITE,
@@ -481,17 +454,9 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
                     goto CleanUp;
                 }
 
-                if (g_receivingFileName != NULL)
-                {
-                    free(g_receivingFileName);
-                    g_receivingFileName = NULL;
-                }
+                S_FREE(g_receivingFileName);
 
-                if (g_receivingFileHandle != INVALID_HANDLE_VALUE)
-                {
-                    CloseHandle(g_receivingFileHandle);
-                    g_receivingFileHandle = INVALID_HANDLE_VALUE;
-                }
+                S_CLOSEHANDLE(g_receivingFileHandle);
 
                 StepProgressBar();
 
@@ -515,11 +480,7 @@ DWORD WINAPI ReceiverThread(LPVOID lpParam)
 
 BOOL StartReceiving(wchar_t *portName, wchar_t *receiveDir)
 {
-    if (g_receivingCOMPortHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_receivingCOMPortHandle);
-        g_receivingCOMPortHandle = INVALID_HANDLE_VALUE;
-    }
+    S_CLOSEHANDLE(g_receivingCOMPortHandle);
 
     if (!OpenCOMPort(portName, &g_receivingCOMPortHandle))
     {
@@ -675,21 +636,9 @@ DWORD WINAPI SenderThread(LPVOID lpParam)
     StepProgressBar();
 
 CleanUp:
-    if (g_sendingCOMPortHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_sendingCOMPortHandle);
-        g_sendingCOMPortHandle = INVALID_HANDLE_VALUE;
-    }
-    if (g_sendingFileHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_sendingFileHandle);
-        g_sendingFileHandle = INVALID_HANDLE_VALUE;
-    }
-    if (g_sendingFileName != NULL)
-    {
-        free(g_sendingFileName);
-        g_sendingFileName = NULL;
-    }
+    S_CLOSEHANDLE(g_sendingCOMPortHandle);
+    S_CLOSEHANDLE(g_sendingFileHandle);
+    S_FREE(g_sendingFileName);
 
     EnableSendModeControls(TRUE);
     SetStatusBarText(STATUS_BAR_STATUS_READY);
@@ -741,25 +690,13 @@ void SendFile(wchar_t *portName, wchar_t *filePath)
         return;
     }
 
-    if (g_sendingCOMPortHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_sendingCOMPortHandle);
-        g_sendingCOMPortHandle = INVALID_HANDLE_VALUE;
-    }
+    S_CLOSEHANDLE(g_sendingCOMPortHandle);
     g_sendingCOMPortHandle = hComPort;
 
-    if (g_sendingFileHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_sendingFileHandle);
-        g_sendingFileHandle = INVALID_HANDLE_VALUE;
-    }
+    S_CLOSEHANDLE(g_sendingFileHandle);
     g_sendingFileHandle = handleFile;
 
-    if (g_sendingFileName != NULL)
-    {
-        free(g_sendingFileName);
-        g_sendingFileName = NULL;
-    }
+    S_FREE(g_sendingFileName);
     g_sendingFileName = _wcsdup(fileName);
 
     g_sendingFileNameSize = fileNameSize;
@@ -788,29 +725,13 @@ void FinaliseSerial(void)
         g_receiverThreadHandle = INVALID_HANDLE_VALUE;
     }
 
-    if (g_receivingCOMPortHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_receivingCOMPortHandle);
-        g_receivingCOMPortHandle = INVALID_HANDLE_VALUE;
-    }
+    S_CLOSEHANDLE(g_receivingCOMPortHandle);
 
-    if (g_receivingFileHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_receivingFileHandle);
-        g_receivingFileHandle = INVALID_HANDLE_VALUE;
-    }
+    S_CLOSEHANDLE(g_receivingFileHandle);
 
-    if (g_receiveDirectory != NULL)
-    {
-        free(g_receiveDirectory);
-        g_receiveDirectory = NULL;
-    }
+    S_FREE(g_receiveDirectory);
 
-    if (g_receivingFileName != NULL)
-    {
-        free(g_receivingFileName);
-        g_receivingFileName = NULL;
-    }
+    S_FREE(g_receivingFileName);
 
     if (g_senderThreadHandle != INVALID_HANDLE_VALUE)
     {
@@ -819,21 +740,9 @@ void FinaliseSerial(void)
         g_senderThreadHandle = INVALID_HANDLE_VALUE;
     }
 
-    if (g_sendingCOMPortHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_sendingCOMPortHandle);
-        g_sendingCOMPortHandle = INVALID_HANDLE_VALUE;
-    }
+    S_CLOSEHANDLE(g_sendingCOMPortHandle);
 
-    if (g_sendingFileHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(g_sendingFileHandle);
-        g_sendingFileHandle = INVALID_HANDLE_VALUE;
-    }
+    S_CLOSEHANDLE(g_sendingFileHandle);
 
-    if (g_sendingFileName != NULL)
-    {
-        free(g_sendingFileName);
-        g_sendingFileName = NULL;
-    }
+    S_FREE(g_sendingFileName);
 }

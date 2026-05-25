@@ -106,11 +106,7 @@ void SetApplicationMode(ApplicationMode newAppMode)
             wchar_t currentPath[MAX_PATH];
             GetTargetPath(currentPath);
 
-            if (g_lastReceiveModeTargetText != NULL)
-            {
-                free(g_lastReceiveModeTargetText);
-                g_lastReceiveModeTargetText = NULL;
-            }
+            S_FREE(g_lastReceiveModeTargetText);
             g_lastReceiveModeTargetText = _wcsdup(currentPath);
 
             newTargetPath = g_lastSendModeTargetText;
@@ -125,11 +121,7 @@ void SetApplicationMode(ApplicationMode newAppMode)
             wchar_t currentPath[MAX_PATH];
             GetTargetPath(currentPath);
 
-            if (g_lastSendModeTargetText != NULL)
-            {
-                free(g_lastSendModeTargetText);
-                g_lastSendModeTargetText = NULL;
-            }
+            S_FREE(g_lastSendModeTargetText);
             g_lastSendModeTargetText = _wcsdup(currentPath);
 
             newTargetPath = g_lastReceiveModeTargetText;
@@ -540,11 +532,7 @@ INT_PTR CALLBACK MainDialogDlgProc(HWND hwnd, UINT wMsg, WPARAM wParam, LPARAM l
             wchar_t currentDir[MAX_PATH];
             GetCurrentDirectoryW(MAX_PATH, currentDir);
 
-            if (g_lastReceiveModeTargetText != NULL)
-            {
-                free(g_lastReceiveModeTargetText);
-                g_lastReceiveModeTargetText = NULL;
-            }
+            S_FREE(g_lastReceiveModeTargetText);
             g_lastReceiveModeTargetText = _wcsdup(currentDir);
 
             return TRUE;
@@ -705,16 +693,8 @@ void FinaliseUI(void)
 {
     FreePortSelectListPortNamePointers();
 
-    if (g_lastSendModeTargetText != NULL)
-    {
-        free(g_lastSendModeTargetText);
-        g_lastSendModeTargetText = NULL;
-    }
-    if (g_lastReceiveModeTargetText != NULL)
-    {
-        free(g_lastReceiveModeTargetText);
-        g_lastReceiveModeTargetText = NULL;
-    }
+    S_FREE(g_lastSendModeTargetText);
+    S_FREE(g_lastReceiveModeTargetText);
     if (g_appIcon != NULL)
     {
         DestroyIcon(g_appIcon);
